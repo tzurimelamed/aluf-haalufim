@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>אלוף האלופים</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="אלוף האלופים">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#7B3F61">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%237B3F61'/%3E%3Ctext x='50%25' y='58%25' font-size='96' text-anchor='middle' dominant-baseline='middle'%3E%F0%9F%8F%86%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%237B3F61'/%3E%3Ctext x='50%25' y='58%25' font-size='96' text-anchor='middle' dominant-baseline='middle'%3E%F0%9F%8F%86%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;800&family=Heebo:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FFF8ED;
+    --paper:#FFFCF6;
+    --surface:#FFFFFF;
+    --ink:#3A2E2A;
+    --ink-soft:#7C6F63;
+    --primary:#7B3F61;
+    --primary-dark:#5E2F4A;
+    --primary-light:#A8637F;
+    --gold:#E8A93C;
+    --gold-dark:#C68A24;
+    --sage:#6B9080;
+    --sage-dark:#517265;
+    --coral:#E76F51;
+    --coral-dark:#C6543A;
+    --sky:#4C8CA8;
+    --sky-dark:#396C84;
+    --line:#EFE4D0;
+    --shadow: 0 2px 10px rgba(58,46,42,0.08);
+    --radius: 18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Heebo', sans-serif;
+    min-height:100vh;
+    -webkit-tap-highlight-color: transparent;
+  }
+  h1,h2,h3,.display{
+    font-family:'Rubik', sans-serif;
+    font-weight:800;
+    letter-spacing:-0.01em;
+  }
+  #app{
+    max-width:520px;
+    margin:0 auto;
+    min-height:100vh;
+    background:var(--paper);
+    display:flex;
+    flex-direction:column;
+    position:relative;
+    box-shadow: var(--shadow);
+  }
+  .header{
+    background:var(--primary);
+    color:#fff;
+    padding:16px 18px 14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .header .title{
+    font-family:'Rubik',sans-serif;
+    font-weight:800;
+    font-size:20px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .header .sub{
+    font-size:12px;
+    opacity:0.85;
+    font-weight:400;
+    font-family:'Heebo',sans-serif;
+  }
+  .icon-btn{
+    background:rgba(255,255,255,0.15);
+    border:none;
+    color:#fff;
+    border-radius:12px;
+    padding:8px 12px;
+    font-size:13px;
+    cursor:pointer;
+    font-family:'Heebo',sans-serif;
+  }
+  .content{
+    flex:1;
+    padding:16px 16px 90px;
+    overflow-y:auto;
+  }
+  .tabbar{
+    position:sticky;
+    top:0;
+    z-index:5;
+    display:flex;
+    gap:6px;
+    overflow-x:auto;
+    padding:10px 12px;
+    background:var(--paper);
+    border-bottom:1px solid var(--line);
+  }
+  .tabbar::-webkit-scrollbar{display:none;}
+  .tab-chip{
+    flex:0 0 auto;
+    padding:8px 14px;
+    border-radius:999px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    color:var(--ink-soft);
+    font-size:13px;
+    font-weight:700;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .tab-chip.active{
+    background:var(--primary);
+    color:#fff;
+    border-color:var(--primary);
+  }
+  .bottom-nav{
+    position:fixed;
+    bottom:0; left:50%; transform:translateX(-50%);
+    width:100%; max-width:520px;
+    background:var(--surface);
+    border-top:1px solid var(--line);
+    display:flex;
+    z-index:10;
+    padding:6px 6px calc(6px + env(safe-area-inset-bottom));
+  }
+  .nav-btn{
+    flex:1;
+    background:none;
+    border:none;
+    padding:8px 4px;
+    text-align:center;
+    color:var(--ink-soft);
+    font-family:'Heebo',sans-serif;
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+    border-radius:12px;
+  }
+  .nav-btn .emoji{display:block;font-size:20px;margin-bottom:2px;}
+  .nav-btn.active{color:var(--primary); background:#F6ECF1;}
+
+  .card{
+    background:var(--surface);
+    border-radius:var(--radius);
+    padding:16px;
+    box-shadow:var(--shadow);
+    margin-bottom:14px;
+    border:1px solid var(--line);
+  }
+  .card h3{margin:0 0 10px; font-size:16px; color:var(--primary-dark);}
+  .row{display:flex; align-items:center; gap:10px;}
+  .row.between{justify-content:space-between;}
+  .row.wrap{flex-wrap:wrap;}
+  .muted{color:var(--ink-soft); font-size:13px;}
+  .btn{
+    border:none;
+    border-radius:14px;
+    padding:11px 16px;
+    font-family:'Heebo',sans-serif;
+    font-weight:700;
+    font-size:14px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    justify-content:center;
+  }
+  .btn-primary{background:var(--primary); color:#fff;}
+  .btn-gold{background:var(--gold); color:#4A340A;}
+  .btn-sage{background:var(--sage); color:#fff;}
+  .btn-coral{background:var(--coral); color:#fff;}
+  .btn-sky{background:var(--sky); color:#fff;}
+  .btn-outline{background:#fff; color:var(--primary); border:1.5px solid var(--primary);}
+  .btn-ghost{background:transparent; color:var(--ink-soft); border:1px solid var(--line);}
+  .btn-block{width:100%;}
+  .btn-lg{padding:16px; font-size:17px; border-radius:18px;}
+  .btn:disabled{opacity:0.45; cursor:not-allowed;}
+
+  .input, select, textarea{
+    width:100%;
+    border:1.5px solid var(--line);
+    border-radius:12px;
+    padding:11px 12px;
+    font-family:'Heebo',sans-serif;
+    font-size:14px;
+    background:#fff;
+    color:var(--ink);
+  }
+  label.field-label{
+    font-size:12px;
+    font-weight:700;
+    color:var(--ink-soft);
+    margin-bottom:4px;
+    display:block;
+  }
+  .field{margin-bottom:12px;}
+
+  .chip{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    padding:5px 10px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:700;
+  }
+  .chip-gold{background:#FCEFD6; color:var(--gold-dark);}
+  .chip-sage{background:#E4EEE9; color:var(--sage-dark);}
+  .chip-coral{background:#FBE4DD; color:var(--coral-dark);}
+  .chip-sky{background:#E2EFF4; color:var(--sky-dark);}
+  .chip-muted{background:#F1EAE0; color:var(--ink-soft);}
+
+  .avatar{
+    width:44px;height:44px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:22px;
+    flex:0 0 auto;
+    border:2px solid #fff;
+    box-shadow:0 0 0 2px var(--line);
+  }
+  .avatar.lg{width:64px;height:64px;font-size:32px;}
+
+  /* Week trail - signature element */
+  .trail{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    position:relative;
+    padding:6px 2px 0;
+  }
+  .trail::before{
+    content:"";
+    position:absolute;
+    top:20px; right:22px; left:22px;
+    height:3px;
+    background:var(--line);
+    z-index:0;
+    border-radius:3px;
+  }
+  .trail-day{
+    position:relative;
+    z-index:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:5px;
+    flex:1;
+    cursor:default;
+  }
+  .trail-dot{
+    width:40px;height:40px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:17px;
+    border:3px solid var(--line);
+    background:#fff;
+    color:var(--ink-soft);
+    font-weight:700;
+  }
+  .trail-dot.today{box-shadow:0 0 0 3px #F6ECF1;}
+  .trail-dot.pending{border-color:var(--line); background:#fff;}
+  .trail-dot.waiting{border-color:var(--gold); background:#FCEFD6; color:var(--gold-dark);}
+  .trail-dot.approved{border-color:var(--sage); background:var(--sage); color:#fff;}
+  .trail-dot.needsfix{border-color:var(--coral); background:#FBE4DD; color:var(--coral-dark);}
+  .trail-dot.opensnatch{border-color:var(--sky); background:var(--sky); color:#fff;}
+  .trail-dot.clickable{cursor:pointer;}
+  .trail-label{font-size:11px; color:var(--ink-soft); font-weight:700;}
+
+  .empty-state{
+    text-align:center;
+    padding:36px 16px;
+    color:var(--ink-soft);
+  }
+  .empty-state .emoji{font-size:40px; display:block; margin-bottom:10px;}
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(58,46,42,0.45);
+    display:none; align-items:flex-end; justify-content:center;
+    z-index:50;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal-box{
+    background:#fff;
+    width:100%; max-width:520px;
+    border-radius:20px 20px 0 0;
+    padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+    max-height:85vh;
+    overflow-y:auto;
+  }
+  .modal-box h3{margin-top:0;}
+  .modal-close-row{display:flex; justify-content:flex-end; margin-bottom:6px;}
+
+  .kidrow{
+    display:flex; align-items:center; gap:12px;
+    padding:10px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .kidrow:last-child{border-bottom:none;}
+
+  .progressbar{
+    height:10px; background:var(--line); border-radius:999px; overflow:hidden;
+  }
+  .progressbar > div{height:100%; background:var(--gold); border-radius:999px;}
+
+  .task-perm-list{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .perm-pill{
+    padding:5px 10px; border-radius:999px; font-size:12px; font-weight:700;
+    border:1.5px solid var(--line); cursor:pointer; background:#fff; color:var(--ink-soft);
+  }
+  .perm-pill.on{background:var(--primary); border-color:var(--primary); color:#fff;}
+
+  .login-wrap{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:100vh; padding:30px 24px; text-align:center;
+  }
+  .login-logo{font-size:52px; margin-bottom:6px;}
+  .login-wrap h1{font-size:26px; color:var(--primary-dark); margin:0 0 4px;}
+  .login-wrap p.tag{color:var(--ink-soft); margin:0 0 26px; font-size:14px;}
+  .login-card{width:100%; max-width:340px;}
+  .hint{font-size:12px; color:var(--ink-soft); margin-top:14px;}
+
+  .snatch-card{
+    background:#FDF6EA;
+    border:1.5px dashed var(--gold);
+    border-radius:16px;
+    padding:14px;
+    margin-bottom:12px;
+  }
+  .money-big{
+    font-family:'Rubik',sans-serif;
+    font-weight:800;
+    font-size:30px;
+    color:var(--gold-dark);
+  }
+  a.linklike{color:var(--primary); font-weight:700; cursor:pointer;}
+  hr.sep{border:none; border-top:1px solid var(--line); margin:14px 0;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box" id="modalBox"></div>
+</div>
+
+<script>
+/* ============ UTILITIES ============ */
+const uid = () => 'id_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const nowIso = () => new Date().toISOString();
+const fmtDate = (iso) => { const d=new Date(iso); return d.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'numeric'}); };
+const fmtDateTime = (iso) => { const d=new Date(iso); return d.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'}) + ' ' + d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}); };
+
+const DAYS = [
+  {key:'sat', label:'מוצ״ש'},
+  {key:'sun', label:'ראשון'},
+  {key:'mon', label:'שני'},
+  {key:'tue', label:'שלישי'},
+  {key:'wed', label:'רביעי'},
+  {key:'thu', label:'חמישי'},
+  {key:'fri', label:'שישי'},
+];
+const AVATARS = ['😊','🦁','🐻','🐼','🐨','🦊','🐯','🐰','🐶','🐱','🦄','🐸','🐵','🐷','🐹','⭐'];
+
+function getWeekStart(d){
+  const day = d.getDay(); // Sun=0..Sat=6
+  const diff = (day - 6 + 7) % 7;
+  const ws = new Date(d);
+  ws.setHours(0,0,0,0);
+  ws.setDate(ws.getDate() - diff);
+  return ws;
+}
+function weekKeyFor(d){
+  const ws = getWeekStart(d);
+  return ws.toISOString().slice(0,10);
+}
+function todayDayKey(){
+  const day = new Date().getDay();
+  const map = {6:'sat',0:'sun',1:'mon',2:'tue',3:'wed',4:'thu',5:'fri'};
+  return map[day];
+}
+function currentWeekKey(){ return weekKeyFor(new Date()); }
+function prevWeekKey(weekKey){
+  const d = new Date(weekKey);
+  d.setDate(d.getDate()-7);
+  return weekKeyFor(d);
+}
+
+/* ============ DEFAULT STATE ============ */
+function defaultState(){
+  const taskIds = [uid(),uid(),uid(),uid(),uid(),uid()];
+  return {
+    parentAuth: { username:'הורה', password:'1234' },
+    kids: [],
+    tasks: [
+      {id:taskIds[0], name:'שירותי אורחים למטה', order:1, allowedKidIds:null},
+      {id:taskIds[1], name:'כביסות – כיבוס, ייבוש ופיזור לחדרים', order:2, allowedKidIds:null},
+      {id:taskIds[2], name:'מקלחת ילדים למעלה', order:3, allowedKidIds:null, note:'לרוב מתאים רק לחלק מהילדים – אפשר להגביל בעריכת המשימה'},
+      {id:taskIds[3], name:'חלל מרכזי למעלה וניקוי מדרגות', order:4, allowedKidIds:null},
+      {id:taskIds[4], name:'כיורים וכלים', order:5, allowedKidIds:null},
+      {id:taskIds[5], name:'חלל מרכזי למטה בסוף היום', order:6, allowedKidIds:null},
+    ],
+    rewardConfig: {
+      weeklyAmount:10,
+      bonusAmount:10,
+      weeksForBonus:4,
+      fixHours:24,
+      snatchDayAmount:5,
+    },
+    weeks: {},
+    snatchTasks: [],
+    ledger: [],
+  };
+}
+
+let state = null;
+let session = { role:null, kidId:null }; // in-memory only, not persisted
+let ui = { parentTab:'home', kidTab:'today', loginError:'' };
+
+/* ============ STORAGE ============ */
+async function loadState(){
+  try{
+    const res = await window.storage.get('family-state', true);
+    if(res && res.value) return JSON.parse(res.value);
+  }catch(e){ /* not found or error -> use defaults */ }
+  return null;
+}
+async function saveState(){
+  try{
+    await window.storage.set('family-state', JSON.stringify(state), true);
+  }catch(e){ console.error('שגיאת שמירה', e); }
+}
+async function persistAndRender(){
+  await saveState();
+  render();
+}
+
+/* ============ DATA HELPERS ============ */
+function getKid(id){ return state.kids.find(k=>k.id===id); }
+function getTask(id){ return state.tasks.find(t=>t.id===id); }
+function sortedTasks(){ return [...state.tasks].sort((a,b)=>a.order-b.order); }
+function isKidAllowedForTask(kidId, task){
+  return !task.allowedKidIds || task.allowedKidIds.includes(kidId);
+}
+function ensureWeek(weekKey){
+  if(!state.weeks[weekKey]) state.weeks[weekKey] = { assignments:{}, days:{}, awarded:{} };
+  return state.weeks[weekKey];
+}
+function ensureKidDays(weekKey, kidId){
+  const wk = ensureWeek(weekKey);
+  if(!wk.days[kidId]){
+    wk.days[kidId] = {};
+    DAYS.forEach(d=>{ wk.days[kidId][d.key] = {status:'pending', note:'', fixDeadline:null, snatchedBy:null}; });
+  }
+  return wk.days[kidId];
+}
+function isDayFulfilled(day){ return day.status==='approved'; }
+function isOpenForSnatch(day){
+  return day.status==='needs_fix' && day.fixDeadline && Date.now() > day.fixDeadline && !day.snatchedBy;
+}
+function getEffectiveDotState(day, isToday){
+  if(isOpenForSnatch(day)) return 'opensnatch';
+  if(day.status==='approved') return 'approved';
+  if(day.status==='needs_fix') return 'needsfix';
+  if(day.status==='waiting_approval') return 'waiting';
+  return 'pending';
+}
+function kidLedger(kidId){ return state.ledger.filter(l=>l.kidId===kidId); }
+function kidBalance(kidId){
+  return kidLedger(kidId).reduce((sum,l)=> sum + (l.currency==='money' ? l.amount : 0), 0);
+}
+function kidPoints(kidId){
+  return kidLedger(kidId).reduce((sum,l)=> sum + (l.currency==='points' ? l.amount : 0), 0);
+}
+function kidTotalPaid(kidId){
+  return kidLedger(kidId).filter(l=>l.type==='payment').reduce((s,l)=>s+Math.abs(l.amount),0);
+}
+function kidWeeklyCompletionsThisMonth(kidId){
+  const now = new Date();
+  return kidLedger(kidId).filter(l=>{
+    if(l.type!=='weekly') return false;
+    const d = new Date(l.date);
+    return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+  }).length;
+}
+function addLedger(kidId, type, amount, currency, label){
+  state.ledger.push({id:uid(), kidId, type, amount, currency, label, date: nowIso()});
+}
+
+function awardWeekIfComplete(weekKey, kidId){
+  const wk = ensureWeek(weekKey);
+  const taskId = wk.assignments[kidId];
+  if(!taskId) return;
+  const days = wk.days[kidId];
+  if(!days) return;
+  const allDone = DAYS.every(d => isDayFulfilled(days[d.key]));
+  if(allDone && !wk.awarded[kidId]){
+    wk.awarded[kidId] = true;
+    const kid = getKid(kidId);
+    const task = getTask(taskId);
+    addLedger(kidId, 'weekly', state.rewardConfig.weeklyAmount, 'money', 'השלמת שבוע: ' + (task?task.name:'משימה'));
+    kid.totalWeeklyCompletions = (kid.totalWeeklyCompletions||0) + 1;
+    kid.streak = (kid.streak||0) + 1;
+    if(kid.totalWeeklyCompletions % state.rewardConfig.weeksForBonus === 0){
+      addLedger(kidId, 'bonus', state.rewardConfig.bonusAmount, 'money', 'בונוס על ' + state.rewardConfig.weeksForBonus + ' שבועות מלאים');
+    }
+  }
+}
+
+/* ============ ACTIONS: AUTH ============ */
+function doLogin(){
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value;
+  if(u===state.parentAuth.username && p===state.parentAuth.password){
+    session = {role:'parent', kidId:null};
+    ui.parentTab='home';
+    render();
+    return;
+  }
+  const kid = state.kids.find(k=>k.username===u && k.password===p);
+  if(kid){
+    session = {role:'kid', kidId:kid.id};
+    ui.kidTab='today';
+    render();
+    return;
+  }
+  ui.loginError = 'שם משתמש או סיסמה שגויים';
+  render();
+}
+function logout(){ session={role:null,kidId:null}; render(); }
+
+/* ============ ACTIONS: KIDS ============ */
+function openKidForm(kidId){
+  const kid = kidId ? getKid(kidId) : null;
+  const avatarsHtml = AVATARS.map(a=>`<span class="perm-pill ${kid&&kid.avatar===a?'on':''}" onclick="pickAvatar('${a}')" data-avatar="${a}" style="font-size:18px;">${a}</span>`).join('');
+  openModal(`
+    <h3>${kid?'עריכת ילד/ה':'הוספת ילד/ה חדש/ה'}</h3>
+    <div class="field"><label class="field-label">שם</label><input class="input" id="kidName" value="${kid?kid.name:''}"></div>
+    <div class="field"><label class="field-label">שם משתמש</label><input class="input" id="kidUser" value="${kid?kid.username:''}"></div>
+    <div class="field"><label class="field-label">סיסמה</label><input class="input" id="kidPass" value="${kid?kid.password:''}"></div>
+    <div class="field"><label class="field-label">אווטאר</label><div class="task-perm-list" id="avatarPicker">${avatarsHtml}</div></div>
+    <input type="hidden" id="chosenAvatar" value="${kid?kid.avatar:AVATARS[0]}">
+    <div class="row" style="margin-top:16px;">
+      <button class="btn btn-primary btn-block" onclick="saveKid(${kid?`'${kid.id}'`:'null'})">שמירה</button>
+    </div>
+    ${kid?`<button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="deleteKid('${kid.id}')">מחיקת ילד/ה</button>`:''}
+  `);
+}
+function pickAvatar(a){
+  document.getElementById('chosenAvatar').value = a;
+  document.querySelectorAll('#avatarPicker .perm-pill').forEach(el=>{
+    el.classList.toggle('on', el.dataset.avatar===a);
+  });
+}
+function saveKid(kidId){
+  const name = document.getElementById('kidName').value.trim();
+  const username = document.getElementById('kidUser').value.trim();
+  const password = document.getElementById('kidPass').value;
+  const avatar = document.getElementById('chosenAvatar').value;
+  if(!name || !username || !password){ alert('נא למלא שם, שם משתמש וסיסמה'); return; }
+  if(kidId){
+    const kid = getKid(kidId);
+    Object.assign(kid, {name, username, password, avatar});
+  } else {
+    state.kids.push({id:uid(), name, username, password, avatar, totalWeeklyCompletions:0, streak:0});
+  }
+  closeModal();
+  persistAndRender();
+}
+function deleteKid(kidId){
+  if(!confirm('למחוק את הילד/ה? הפעולה בלתי הפיכה.')) return;
+  state.kids = state.kids.filter(k=>k.id!==kidId);
+  closeModal();
+  persistAndRender();
+}
+
+/* ============ ACTIONS: TASKS ============ */
+function openTaskForm(taskId){
+  const task = taskId ? getTask(taskId) : null;
+  const permsHtml = state.kids.map(k=>{
+    const on = task ? isKidAllowedForTask(k.id, task) : true;
+    return `<span class="perm-pill ${on?'on':''}" data-kid="${k.id}" onclick="toggleTaskPermPill(this)">${k.avatar||''} ${k.name}</span>`;
+  }).join('') || '<span class="muted">אין עדיין ילדים במערכת</span>';
+  openModal(`
+    <h3>${task?'עריכת משימה':'משימה חדשה'}</h3>
+    <div class="field"><label class="field-label">שם המשימה</label><input class="input" id="taskName" value="${task?task.name:''}"></div>
+    <div class="field">
+      <label class="field-label">מי יכול/ה לבצע (ריק = כולם)</label>
+      <div class="task-perm-list" id="taskPerms">${permsHtml}</div>
+    </div>
+    <div class="row" style="margin-top:16px;">
+      <button class="btn btn-primary btn-block" onclick="saveTask(${task?`'${task.id}'`:'null'})">שמירה</button>
+    </div>
+    ${task?`<button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="deleteTask('${task.id}')">מחיקת משימה</button>`:''}
+  `);
+}
+function toggleTaskPermPill(el){ el.classList.toggle('on'); }
+function saveTask(taskId){
+  const name = document.getElementById('taskName').value.trim();
+  if(!name){ alert('נא להזין שם משימה'); return; }
+  const onPills = [...document.querySelectorAll('#taskPerms .perm-pill.on')].map(p=>p.dataset.kid);
+  const allowedKidIds = (onPills.length===state.kids.length || onPills.length===0) ? null : onPills;
+  if(taskId){
+    const t = getTask(taskId);
+    t.name = name; t.allowedKidIds = allowedKidIds;
+  } else {
+    const maxOrder = state.tasks.length ? Math.max(...state.tasks.map(t=>t.order)) : 0;
+    state.tasks.push({id:uid(), name, order:maxOrder+1, allowedKidIds});
+  }
+  closeModal();
+  persistAndRender();
+}
+function deleteTask(taskId){
+  if(!confirm('למחוק את המשימה?')) return;
+  state.tasks = state.tasks.filter(t=>t.id!==taskId);
+  closeModal();
+  persistAndRender();
+}
+function moveTask(taskId, dir){
+  const list = sortedTasks();
+  const idx = list.findIndex(t=>t.id===taskId);
+  const swapIdx = idx+dir;
+  if(swapIdx<0 || swapIdx>=list.length) return;
+  const a = list[idx], b = list[swapIdx];
+  const tmp = a.order; a.order = b.order; b.order = tmp;
+  persistAndRender();
+}
+
+/* ============ ACTIONS: WEEK ASSIGNMENT ============ */
+function assignKidTask(kidId, taskId){
+  const wk = ensureWeek(currentWeekKey());
+  if(taskId){ wk.assignments[kidId] = taskId; ensureKidDays(currentWeekKey(), kidId); }
+  else { delete wk.assignments[kidId]; }
+  persistAndRender();
+}
+function copyPreviousWeek(){
+  const cur = currentWeekKey();
+  const prev = prevWeekKey(cur);
+  const prevWk = state.weeks[prev];
+  if(!prevWk){ alert('אין נתונים לשבוע הקודם'); return; }
+  const wk = ensureWeek(cur);
+  Object.entries(prevWk.assignments).forEach(([kidId, taskId])=>{
+    wk.assignments[kidId] = taskId;
+    ensureKidDays(cur, kidId);
+  });
+  persistAndRender();
+}
+function autoRotateWeek(){
+  const cur = currentWeekKey();
+  const wk = ensureWeek(cur);
+  const kids = [...state.kids].sort(()=>Math.random()-0.5);
+  const tasks = sortedTasks();
+  const usedKids = new Set();
+  tasks.forEach(task=>{
+    const candidate = kids.find(k=>!usedKids.has(k.id) && isKidAllowedForTask(k.id, task));
+    if(candidate){
+      wk.assignments[candidate.id] = task.id;
+      usedKids.add(candidate.id);
+      ensureKidDays(cur, candidate.id);
+    }
+  });
+  persistAndRender();
+}
+
+/* ============ ACTIONS: APPROVALS ============ */
+function markDayDone(ownerKidId, dayKey){
+  const wk = ensureWeek(currentWeekKey());
+  const day = wk.days[ownerKidId][dayKey];
+  day.status = 'waiting_approval';
+  persistAndRender();
+}
+function approveDay(ownerKidId, dayKey){
+  const weekKey = currentWeekKey();
+  const wk = ensureWeek(weekKey);
+  const day = wk.days[ownerKidId][dayKey];
+  day.status = 'approved';
+  if(day.snatchedBy){
+    const dayLabel = DAYS.find(d=>d.key===dayKey).label;
+    const taskName = getTask(wk.assignments[ownerKidId])?.name || 'משימה';
+    addLedger(day.snatchedBy, 'snatch', state.rewardConfig.snatchDayAmount, 'money', 'חטיפת משימה יומית: ' + taskName + ' (' + dayLabel + ')');
+  }
+  awardWeekIfComplete(weekKey, ownerKidId);
+  persistAndRender();
+}
+function openRejectModal(ownerKidId, dayKey){
+  openModal(`
+    <h3>דחיית ביצוע</h3>
+    <div class="field"><label class="field-label">מה נדרש לתקן?</label><textarea class="input" id="rejectNote" rows="3" placeholder="למשל: נשארו כלים בכיור"></textarea></div>
+    <div class="field"><label class="field-label">זמן לתיקון (שעות)</label><input class="input" type="number" id="rejectHours" value="${state.rewardConfig.fixHours}"></div>
+    <button class="btn btn-coral btn-block" onclick="confirmReject('${ownerKidId}','${dayKey}')">שליחה לתיקון</button>
+  `);
+}
+function confirmReject(ownerKidId, dayKey){
+  const note = document.getElementById('rejectNote').value.trim();
+  const hours = parseFloat(document.getElementById('rejectHours').value) || state.rewardConfig.fixHours;
+  const wk = ensureWeek(currentWeekKey());
+  const day = wk.days[ownerKidId][dayKey];
+  day.status = 'needs_fix';
+  day.note = note;
+  day.fixDeadline = Date.now() + hours*3600*1000;
+  day.snatchedBy = null;
+  closeModal();
+  persistAndRender();
+}
+function claimDaySnatch(ownerKidId, dayKey){
+  const wk = ensureWeek(currentWeekKey());
+  const day = wk.days[ownerKidId][dayKey];
+  day.status = 'pending';
+  day.snatchedBy = session.kidId;
+  day.fixDeadline = null;
+  persistAndRender();
+}
+
+/* ============ ACTIONS: SNATCH TASKS (one-off) ============ */
+function openSnatchTaskForm(taskId){
+  const t = taskId ? state.snatchTasks.find(s=>s.id===taskId) : null;
+  const kidOptions = `<option value="">פתוח לכולם</option>` + state.kids.map(k=>`<option value="${k.id}" ${t&&t.restrictedTo===k.id?'selected':''}>${k.name}</option>`).join('');
+  const defaultExpiry = new Date(Date.now()+24*3600*1000).toISOString().slice(0,16);
+  openModal(`
+    <h3>${t?'עריכת משימת חטיפה':'משימת חטיפה חדשה'}</h3>
+    <div class="field"><label class="field-label">כותרת</label><input class="input" id="snTitle" value="${t?t.title:''}"></div>
+    <div class="field"><label class="field-label">תיאור</label><textarea class="input" id="snDesc" rows="2">${t?t.desc:''}</textarea></div>
+    <div class="row">
+      <div class="field" style="flex:1;"><label class="field-label">תגמול</label><input class="input" type="number" id="snReward" value="${t?t.reward:10}"></div>
+      <div class="field" style="flex:1;"><label class="field-label">סוג</label>
+        <select id="snCurrency">
+          <option value="money" ${!t||t.currency==='money'?'selected':''}>ש״ח</option>
+          <option value="points" ${t&&t.currency==='points'?'selected':''}>נקודות</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label class="field-label">תוקף עד</label><input class="input" type="datetime-local" id="snExpiry" value="${t?new Date(t.expiresAt).toISOString().slice(0,16):defaultExpiry}"></div>
+    <div class="field"><label class="field-label">מוגבל לילד/ה</label><select id="snRestrict">${kidOptions}</select></div>
+    <button class="btn btn-primary btn-block" onclick="saveSnatchTask(${t?`'${t.id}'`:'null'})">שמירה</button>
+    ${t?`<button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="deleteSnatchTask('${t.id}')">מחיקה</button>`:''}
+  `);
+}
+function saveSnatchTask(taskId){
+  const title = document.getElementById('snTitle').value.trim();
+  const desc = document.getElementById('snDesc').value.trim();
+  const reward = parseFloat(document.getElementById('snReward').value)||0;
+  const currency = document.getElementById('snCurrency').value;
+  const expiresAt = new Date(document.getElementById('snExpiry').value).getTime();
+  const restrictedTo = document.getElementById('snRestrict').value || null;
+  if(!title){ alert('נא להזין כותרת'); return; }
+  if(taskId){
+    const t = state.snatchTasks.find(s=>s.id===taskId);
+    Object.assign(t, {title, desc, reward, currency, expiresAt, restrictedTo});
+  } else {
+    state.snatchTasks.push({id:uid(), title, desc, reward, currency, expiresAt, restrictedTo, status:'open', claimedBy:null});
+  }
+  closeModal();
+  persistAndRender();
+}
+function deleteSnatchTask(taskId){
+  if(!confirm('למחוק את משימת החטיפה?')) return;
+  state.snatchTasks = state.snatchTasks.filter(s=>s.id!==taskId);
+  closeModal();
+  persistAndRender();
+}
+function claimSnatchTask(taskId){
+  const t = state.snatchTasks.find(s=>s.id===taskId);
+  t.status = 'claimed';
+  t.claimedBy = session.kidId;
+  persistAndRender();
+}
+function kidCompleteSnatchTask(taskId){
+  const t = state.snatchTasks.find(s=>s.id===taskId);
+  t.status = 'waiting_approval';
+  persistAndRender();
+}
+function approveSnatchTask(taskId){
+  const t = state.snatchTasks.find(s=>s.id===taskId);
+  t.status = 'approved';
+  addLedger(t.claimedBy, 'snatch', t.reward, t.currency, 'משימת חטיפה: ' + t.title);
+  persistAndRender();
+}
+function rejectSnatchTask(taskId){
+  const t = state.snatchTasks.find(s=>s.id===taskId);
+  t.status = 'open';
+  t.claimedBy = null;
+  persistAndRender();
+}
+
+/* ============ ACTIONS: PAYMENTS & CONFIG ============ */
+function openPaymentModal(kidId){
+  const bal = kidBalance(kidId);
+  openModal(`
+    <h3>סימון תשלום ל${getKid(kidId).name}</h3>
+    <p class="muted">יתרה זמינה: ${bal} ₪</p>
+    <div class="field"><label class="field-label">סכום לתשלום</label><input class="input" type="number" id="payAmount" value="${bal}"></div>
+    <div class="field"><label class="field-label">הערה</label><input class="input" id="payNote" placeholder="לדוגמה: תשלום שבועי"></div>
+    <button class="btn btn-gold btn-block" onclick="recordPayment('${kidId}')">אישור תשלום</button>
+  `);
+}
+function recordPayment(kidId){
+  const amount = parseFloat(document.getElementById('payAmount').value)||0;
+  const note = document.getElementById('payNote').value.trim() || 'תשלום';
+  addLedger(kidId, 'payment', -amount, 'money', note);
+  closeModal();
+  persistAndRender();
+}
+function openRewardConfigModal(){
+  const c = state.rewardConfig;
+  openModal(`
+    <h3>הגדרות תגמול</h3>
+    <div class="field"><label class="field-label">תגמול על שבוע מלא (₪)</label><input class="input" type="number" id="cfgWeekly" value="${c.weeklyAmount}"></div>
+    <div class="field"><label class="field-label">בונוס חודשי (₪)</label><input class="input" type="number" id="cfgBonus" value="${c.bonusAmount}"></div>
+    <div class="field"><label class="field-label">כמות שבועות מלאים לבונוס</label><input class="input" type="number" id="cfgWeeksForBonus" value="${c.weeksForBonus}"></div>
+    <div class="field"><label class="field-label">זמן ברירת מחדל לתיקון (שעות)</label><input class="input" type="number" id="cfgFixHours" value="${c.fixHours}"></div>
+    <div class="field"><label class="field-label">תגמול על חטיפת יום משימה (₪)</label><input class="input" type="number" id="cfgSnatchDay" value="${c.snatchDayAmount}"></div>
+    <button class="btn btn-primary btn-block" onclick="saveRewardConfig()">שמירה</button>
+    <hr class="sep">
+    <h3>פרטי כניסת הורה</h3>
+    <div class="field"><label class="field-label">שם משתמש</label><input class="input" id="cfgParentUser" value="${state.parentAuth.username}"></div>
+    <div class="field"><label class="field-label">סיסמה</label><input class="input" id="cfgParentPass" value="${state.parentAuth.password}"></div>
+    <button class="btn btn-outline btn-block" onclick="saveParentAuth()">עדכון פרטי כניסה</button>
+  `);
+}
+function saveRewardConfig(){
+  state.rewardConfig.weeklyAmount = parseFloat(document.getElementById('cfgWeekly').value)||0;
+  state.rewardConfig.bonusAmount = parseFloat(document.getElementById('cfgBonus').value)||0;
+  state.rewardConfig.weeksForBonus = parseInt(document.getElementById('cfgWeeksForBonus').value)||4;
+  state.rewardConfig.fixHours = parseFloat(document.getElementById('cfgFixHours').value)||24;
+  state.rewardConfig.snatchDayAmount = parseFloat(document.getElementById('cfgSnatchDay').value)||0;
+  closeModal();
+  persistAndRender();
+}
+function saveParentAuth(){
+  state.parentAuth.username = document.getElementById('cfgParentUser').value.trim();
+  state.parentAuth.password = document.getElementById('cfgParentPass').value;
+  closeModal();
+  persistAndRender();
+}
+
+/* ============ ACTIONS: BACKUP / RESTORE ============ */
+function exportBackup(){
+  const dataStr = JSON.stringify(state, null, 2);
+  const blob = new Blob([dataStr], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dateStr = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `גיבוי-אלוף-האלופים-${dateStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function triggerImportPicker(){
+  document.getElementById('importFileInput').click();
+}
+function handleImportFile(input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const parsed = JSON.parse(e.target.result);
+      if(!parsed.kids || !parsed.tasks || !parsed.rewardConfig){
+        alert('קובץ הגיבוי לא תקין.');
+        return;
+      }
+      if(!confirm('פעולה זו תחליף את כל הנתונים הקיימים בנתוני הגיבוי. להמשיך?')) return;
+      state = parsed;
+      persistAndRender();
+      alert('הגיבוי שוחזר בהצלחה.');
+    }catch(err){
+      alert('לא הצלחתי לקרוא את קובץ הגיבוי. ודא שזהו קובץ JSON תקין שיוצא מהאפליקציה.');
+    }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+/* ============ MODAL ============ */
+function openModal(html){
+  document.getElementById('modalBox').innerHTML = `<div class="modal-close-row"><button class="icon-btn" style="background:#F1EAE0;color:var(--ink-soft);" onclick="closeModal()">✕ סגירה</button></div>` + html;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){ document.getElementById('modalOverlay').classList.remove('open'); }
+
+/* ============ NAV ============ */
+function switchParentTab(tab){ ui.parentTab = tab; render(); }
+function switchKidTab(tab){ ui.kidTab = tab; render(); }
+
+/* ============ RENDER: LOGIN ============ */
+function renderLogin(){
+  return `
+  <div class="login-wrap">
+    <div class="login-logo">🏆</div>
+    <h1>אלוף האלופים</h1>
+    <p class="tag">ניהול משימות הבית למשפחה שלנו</p>
+    <div class="card login-card">
+      <div class="field"><label class="field-label">שם משתמש</label><input class="input" id="loginUser" placeholder="שם משתמש"></div>
+      <div class="field"><label class="field-label">סיסמה</label><input class="input" id="loginPass" type="password" placeholder="סיסמה"></div>
+      ${ui.loginError?`<p style="color:var(--coral-dark); font-size:13px; margin:-4px 0 10px;">${ui.loginError}</p>`:''}
+      <button class="btn btn-primary btn-block btn-lg" onclick="doLogin()">כניסה</button>
+    </div>
+  </div>`;
+}
+
+/* ============ RENDER: PARENT ============ */
+function renderParentTrail(kidId, weekKey){
+  const wk = ensureWeek(weekKey);
+  const days = wk.days[kidId];
+  const today = todayDayKey();
+  if(!days) return '<p class="muted">לא הוקצתה משימה השבוע</p>';
+  return `<div class="trail">${DAYS.map(d=>{
+    const day = days[d.key];
+    const st = getEffectiveDotState(day, d.key===today);
+    const icon = {pending:'',waiting:'⏳',approved:'✓',needsfix:'!',opensnatch:'⚡'}[st];
+    let actions = '';
+    if(st==='waiting'){
+      actions = `<div class="row" style="gap:3px; margin-top:4px;">
+        <button class="icon-btn" style="background:var(--sage); padding:4px 7px; font-size:11px;" onclick="approveDay('${kidId}','${d.key}')">אשר</button>
+        <button class="icon-btn" style="background:var(--coral); padding:4px 7px; font-size:11px;" onclick="openRejectModal('${kidId}','${d.key}')">דחה</button>
+      </div>`;
+    }
+    return `<div class="trail-day">
+      <div class="trail-dot ${st} ${d.key===today?'today':''}">${icon}</div>
+      <div class="trail-label">${d.label}</div>
+      ${actions}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderParentHome(){
+  const weekKey = currentWeekKey();
+  if(state.kids.length===0){
+    return `<div class="empty-state"><span class="emoji">👨‍👩‍👧‍👦</span>עוד לא הוספתם ילדים.<br><a class="linklike" onclick="switchParentTab('kids')">מעבר להוספת ילדים</a></div>`;
+  }
+  const kidsRows = state.kids.map(kid=>{
+    const wk = ensureWeek(weekKey);
+    const taskId = wk.assignments[kid.id];
+    const task = taskId ? getTask(taskId) : null;
+    return `<div class="card">
+      <div class="row between">
+        <div class="row"><div class="avatar">${kid.avatar||'😊'}</div><div><b>${kid.name}</b><br><span class="muted">${task?task.name:'אין משימה השבוע'}</span></div></div>
+        <div class="chip chip-gold">${kidBalance(kid.id)} ₪</div>
+      </div>
+      <hr class="sep">
+      ${renderParentTrail(kid.id, weekKey)}
+    </div>`;
+  }).join('');
+
+  const openSnatchDays = [];
+  state.kids.forEach(kid=>{
+    const wk = ensureWeek(weekKey);
+    const days = wk.days[kid.id];
+    if(!days) return;
+    DAYS.forEach(d=>{
+      if(isOpenForSnatch(days[d.key])){
+        const task = getTask(wk.assignments[kid.id]);
+        openSnatchDays.push(`<div class="row between" style="padding:6px 0;"><span>${kid.name} · ${task?task.name:''} · ${d.label}</span><span class="chip chip-sky">פתוח לחטיפה</span></div>`);
+      }
+    });
+  });
+  const pendingSnatchTasks = state.snatchTasks.filter(t=>t.status==='waiting_approval');
+
+  return `
+    <h3 style="margin:2px 0 12px;">שבוע נוכחי (${fmtDate(weekKey)})</h3>
+    ${kidsRows}
+    ${openSnatchDays.length?`<div class="card"><h3>⚡ ימי משימה פתוחים לחטיפה</h3>${openSnatchDays.join('')}</div>`:''}
+    ${pendingSnatchTasks.length?`<div class="card"><h3>🎯 משימות חטיפה ממתינות לאישור</h3>${pendingSnatchTasks.map(t=>`
+      <div class="row between" style="padding:6px 0;">
+        <span>${t.title} · ${getKid(t.claimedBy)?.name||''}</span>
+        <div class="row" style="gap:4px;">
+          <button class="icon-btn" style="background:var(--sage);" onclick="approveSnatchTask('${t.id}')">אשר</button>
+          <button class="icon-btn" style="background:var(--coral);" onclick="rejectSnatchTask('${t.id}')">דחה</button>
+        </div>
+      </div>`).join('')}</div>`:''}
+  `;
+}
+
+function renderParentKids(){
+  const list = state.kids.map(kid=>`
+    <div class="kidrow">
+      <div class="avatar">${kid.avatar||'😊'}</div>
+      <div style="flex:1;">
+        <b>${kid.name}</b><br>
+        <span class="muted">משתמש: ${kid.username}</span>
+      </div>
+      <div class="chip chip-gold">${kidBalance(kid.id)} ₪</div>
+      <button class="btn btn-ghost" onclick="openKidForm('${kid.id}')">עריכה</button>
+    </div>
+  `).join('') || '<p class="muted">אין עדיין ילדים.</p>';
+  return `
+    <div class="card">
+      <h3>ילדי המשפחה</h3>
+      ${list}
+      <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="openKidForm(null)">+ הוספת ילד/ה</button>
+    </div>
+  `;
+}
+
+function renderParentTasks(){
+  const list = sortedTasks().map((t,i,arr)=>{
+    const permLabel = t.allowedKidIds ? t.allowedKidIds.map(id=>getKid(id)?.name).filter(Boolean).join(', ') : 'כל הילדים';
+    return `<div class="card">
+      <div class="row between">
+        <b>${t.name}</b>
+        <div class="row" style="gap:2px;">
+          <button class="icon-btn" style="background:#F1EAE0;color:var(--ink-soft); padding:5px 8px;" onclick="moveTask('${t.id}',-1)" ${i===0?'disabled':''}>▲</button>
+          <button class="icon-btn" style="background:#F1EAE0;color:var(--ink-soft); padding:5px 8px;" onclick="moveTask('${t.id}',1)" ${i===arr.length-1?'disabled':''}>▼</button>
+        </div>
+      </div>
+      <p class="muted" style="margin:6px 0 0;">מורשים: ${permLabel}</p>
+      ${t.note?`<p class="muted" style="margin:4px 0 0;">💡 ${t.note}</p>`:''}
+      <button class="btn btn-ghost" style="margin-top:8px;" onclick="openTaskForm('${t.id}')">עריכה</button>
+    </div>`;
+  }).join('');
+  return `${list}<button class="btn btn-primary btn-block" onclick="openTaskForm(null)">+ משימה חדשה</button>`;
+}
+
+function renderParentWeek(){
+  const weekKey = currentWeekKey();
+  const wk = ensureWeek(weekKey);
+  const rows = state.kids.map(kid=>{
+    const options = `<option value="">— ללא —</option>` + sortedTasks().filter(t=>isKidAllowedForTask(kid.id,t)).map(t=>`<option value="${t.id}" ${wk.assignments[kid.id]===t.id?'selected':''}>${t.name}</option>`).join('');
+    return `<div class="row between" style="padding:8px 0; border-bottom:1px solid var(--line);">
+      <div class="row"><div class="avatar">${kid.avatar||'😊'}</div><b>${kid.name}</b></div>
+      <select style="width:170px;" onchange="assignKidTask('${kid.id}', this.value)">${options}</select>
+    </div>`;
+  }).join('') || '<p class="muted">אין עדיין ילדים.</p>';
+  return `
+    <div class="card">
+      <h3>הקצאת משימות לשבוע (${fmtDate(weekKey)})</h3>
+      ${rows}
+      <div class="row" style="margin-top:14px; gap:8px;">
+        <button class="btn btn-outline" onclick="copyPreviousWeek()">שכפול משבוע קודם</button>
+        <button class="btn btn-outline" onclick="autoRotateWeek()">רוטציה אוטומטית</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderParentSnatch(){
+  const list = state.snatchTasks.map(t=>{
+    const expired = Date.now() > t.expiresAt && t.status==='open';
+    const statusChip = {
+      open:'<span class="chip chip-sky">פתוח</span>',
+      claimed:'<span class="chip chip-gold">נלקח</span>',
+      waiting_approval:'<span class="chip chip-gold">ממתין לאישור</span>',
+      approved:'<span class="chip chip-sage">אושר</span>',
+    }[t.status] || '';
+    return `<div class="card">
+      <div class="row between"><b>${t.title}</b>${expired?'<span class="chip chip-coral">פג תוקף</span>':statusChip}</div>
+      <p class="muted">${t.desc||''}</p>
+      <p class="muted">תגמול: ${t.reward} ${t.currency==='money'?'₪':'נק׳'} · תוקף עד ${fmtDateTime(t.expiresAt)}${t.restrictedTo?(' · מוגבל ל'+(getKid(t.restrictedTo)?.name||'')):''}</p>
+      ${t.claimedBy?`<p class="muted">בוצע ע״י: ${getKid(t.claimedBy)?.name||''}</p>`:''}
+      <div class="row" style="gap:6px; margin-top:8px;">
+        <button class="btn btn-ghost" onclick="openSnatchTaskForm('${t.id}')">עריכה</button>
+        ${t.status==='waiting_approval'?`<button class="btn btn-sage" onclick="approveSnatchTask('${t.id}')">אשר</button><button class="btn btn-coral" onclick="rejectSnatchTask('${t.id}')">דחה</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  return `${list}<button class="btn btn-primary btn-block" onclick="openSnatchTaskForm(null)">+ משימת חטיפה חדשה</button>`;
+}
+
+function renderParentReports(){
+  const kidsBlocks = state.kids.map(kid=>{
+    const entries = kidLedger(kid.id).slice().reverse();
+    const rows = entries.map(l=>{
+      const sign = l.amount>=0 ? '+' : '';
+      const label = {weekly:'שבוע מלא',bonus:'בונוס',snatch:'חטיפה',payment:'תשלום'}[l.type]||l.type;
+      return `<div class="row between" style="padding:4px 0; font-size:13px;">
+        <span class="muted">${fmtDate(l.date)} · ${label} · ${l.label}</span>
+        <b style="color:${l.amount>=0?'var(--sage-dark)':'var(--coral-dark)'}">${sign}${l.amount} ${l.currency==='money'?'₪':'נק׳'}</b>
+      </div>`;
+    }).join('') || '<p class="muted">אין תנועות עדיין.</p>';
+    return `<div class="card">
+      <div class="row between">
+        <div class="row"><div class="avatar">${kid.avatar||'😊'}</div><b>${kid.name}</b></div>
+        <button class="btn btn-gold" onclick="openPaymentModal('${kid.id}')">סימון תשלום (${kidBalance(kid.id)} ₪)</button>
+      </div>
+      <hr class="sep">
+      ${rows}
+    </div>`;
+  }).join('') || '<p class="muted">אין עדיין ילדים.</p>';
+  return kidsBlocks;
+}
+
+function renderParentSettings(){
+  return `<div class="card">
+    <h3>הגדרות תגמול וכניסה</h3>
+    <p class="muted">תגמול שבועי: ${state.rewardConfig.weeklyAmount} ₪ · בונוס: ${state.rewardConfig.bonusAmount} ₪ אחרי ${state.rewardConfig.weeksForBonus} שבועות · זמן תיקון: ${state.rewardConfig.fixHours} שעות · תגמול חטיפת יום: ${state.rewardConfig.snatchDayAmount} ₪</p>
+    <button class="btn btn-primary btn-block" onclick="openRewardConfigModal()">עריכת הגדרות</button>
+  </div>
+  <div class="card">
+    <h3>גיבוי ושחזור</h3>
+    <p class="muted">מומלץ לייצא גיבוי מדי פעם, כדי לא לאבד היסטוריה במקרה שהמנוי או הפרסום ישתנו.</p>
+    <div class="row" style="gap:8px;">
+      <button class="btn btn-gold" style="flex:1;" onclick="exportBackup()">⬇️ ייצוא גיבוי</button>
+      <button class="btn btn-outline" style="flex:1;" onclick="triggerImportPicker()">⬆️ שחזור מגיבוי</button>
+    </div>
+    <input type="file" id="importFileInput" accept="application/json" style="display:none;" onchange="handleImportFile(this)">
+  </div>
+  <div class="card">
+    <p class="muted">הנתונים באפליקציה זו נשמרים במאגר משותף לכל מי שנכנס אליה עם קישור זה (ההורה וכל הילדים). אין צורך בהתחברות מאובטחת מכיוון שהיא מיועדת לשימוש פנימי במשפחה בלבד.</p>
+  </div>`;
+}
+
+function renderParentApp(){
+  const tabs = [
+    {key:'home', label:'בית'},
+    {key:'kids', label:'ילדים'},
+    {key:'tasks', label:'משימות'},
+    {key:'week', label:'שבוע'},
+    {key:'snatch', label:'חטיפה'},
+    {key:'reports', label:'דוחות'},
+    {key:'settings', label:'הגדרות'},
+  ];
+  const tabbar = `<div class="tabbar">${tabs.map(t=>`<div class="tab-chip ${ui.parentTab===t.key?'active':''}" onclick="switchParentTab('${t.key}')">${t.label}</div>`).join('')}</div>`;
+  let body = '';
+  if(ui.parentTab==='home') body = renderParentHome();
+  else if(ui.parentTab==='kids') body = renderParentKids();
+  else if(ui.parentTab==='tasks') body = renderParentTasks();
+  else if(ui.parentTab==='week') body = renderParentWeek();
+  else if(ui.parentTab==='snatch') body = renderParentSnatch();
+  else if(ui.parentTab==='reports') body = renderParentReports();
+  else if(ui.parentTab==='settings') body = renderParentSettings();
+
+  return `
+    <div class="header">
+      <div class="title">🏆 אלוף האלופים <span class="sub">· מצב הורה</span></div>
+      <button class="icon-btn" onclick="logout()">יציאה</button>
+    </div>
+    ${tabbar}
+    <div class="content">${body}</div>
+  `;
+}
+
+/* ============ RENDER: KID ============ */
+function renderKidToday(){
+  const kid = getKid(session.kidId);
+  const weekKey = currentWeekKey();
+  const wk = ensureWeek(weekKey);
+  const taskId = wk.assignments[kid.id];
+  const task = taskId ? getTask(taskId) : null;
+  const today = todayDayKey();
+  if(!task){
+    return `<div class="empty-state"><span class="emoji">🗓️</span>עדיין אין לך משימה השבוע.<br>בקש/י מההורים להקצות משימה.</div>`;
+  }
+  const days = ensureKidDays(weekKey, kid.id);
+  const todayObj = days[today];
+  const st = getEffectiveDotState(todayObj, true);
+
+  let mainAction = '';
+  if(st==='pending'){
+    mainAction = `<button class="btn btn-primary btn-block btn-lg" onclick="markDayDone('${kid.id}','${today}')">✓ ביצעתי!</button>`;
+  } else if(st==='waiting'){
+    mainAction = `<div class="chip chip-gold" style="font-size:14px; padding:10px 16px;">⏳ ממתין לאישור הורה</div>`;
+  } else if(st==='approved'){
+    mainAction = `<div class="chip chip-sage" style="font-size:14px; padding:10px 16px;">✓ בוצע ואושר! כל הכבוד</div>`;
+  } else if(st==='needsfix'){
+    mainAction = `<div class="chip chip-coral" style="font-size:13px; padding:10px 14px; display:block;">נדרש תיקון: ${todayObj.note||''}</div>
+      <button class="btn btn-primary btn-block" style="margin-top:10px;" onclick="markDayDone('${kid.id}','${today}')">תיקנתי, לבדיקה מחדש</button>`;
+  } else if(st==='opensnatch'){
+    mainAction = `<div class="chip chip-sky" style="font-size:13px; padding:10px 14px;">הזמן לתיקון עבר – המשימה פתוחה לחטיפה על ידי אח/אחות אחר/ת.</div>`;
+  }
+
+  return `
+    <div class="card" style="text-align:center;">
+      <div class="avatar lg" style="margin:0 auto 8px;">${kid.avatar||'😊'}</div>
+      <h2 style="margin:0;">שלום ${kid.name}! 👋</h2>
+      <p class="muted" style="margin:4px 0 16px;">המשימה שלך השבוע:</p>
+      <h3 style="margin:0 0 16px; color:var(--primary-dark);">${task.name}</h3>
+      ${mainAction}
+    </div>
+    <div class="card">
+      <h3>לוח השבוע שלי</h3>
+      ${renderKidTrail(kid.id, weekKey)}
+    </div>
+  `;
+}
+function renderKidTrail(kidId, weekKey){
+  const wk = ensureWeek(weekKey);
+  const days = wk.days[kidId];
+  const today = todayDayKey();
+  return `<div class="trail">${DAYS.map(d=>{
+    const day = days[d.key];
+    const st = getEffectiveDotState(day, d.key===today);
+    const icon = {pending:'',waiting:'⏳',approved:'✓',needsfix:'!',opensnatch:'⚡'}[st];
+    return `<div class="trail-day">
+      <div class="trail-dot ${st} ${d.key===today?'today':''}">${icon}</div>
+      <div class="trail-label">${d.label}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderKidSnatch(){
+  const kid = getKid(session.kidId);
+  const weekKey = currentWeekKey();
+  const wk = ensureWeek(weekKey);
+
+  // Days I've snatched, awaiting my action
+  const mySnatched = [];
+  state.kids.forEach(owner=>{
+    const days = wk.days[owner.id];
+    if(!days) return;
+    DAYS.forEach(d=>{
+      const day = days[d.key];
+      if(day.snatchedBy===kid.id && (day.status==='pending' || day.status==='waiting_approval')){
+        const task = getTask(wk.assignments[owner.id]);
+        mySnatched.push({day, dayKey:d.key, dayLabel:d.label, ownerId:owner.id, taskName: task?task.name:''});
+      }
+    });
+  });
+
+  // Open day-tasks anyone can snatch (excluding my own row)
+  const openDays = [];
+  state.kids.forEach(owner=>{
+    const days = wk.days[owner.id];
+    if(!days) return;
+    DAYS.forEach(d=>{
+      const day = days[d.key];
+      if(isOpenForSnatch(day)){
+        const task = getTask(wk.assignments[owner.id]);
+        if(task && isKidAllowedForTask(kid.id, task) && owner.id!==kid.id){
+          openDays.push({dayKey:d.key, dayLabel:d.label, ownerId:owner.id, taskName:task.name});
+        }
+      }
+    });
+  });
+
+  const bonusTasks = state.snatchTasks.filter(t=>{
+    if(Date.now() > t.expiresAt && t.status==='open') return false;
+    if(t.restrictedTo && t.restrictedTo!==kid.id) return false;
+    return t.status==='open' || t.claimedBy===kid.id;
+  });
+
+  let html = '';
+  if(mySnatched.length){
+    html += `<div class="card"><h3>המשימות שחטפתי</h3>` + mySnatched.map(m=>`
+      <div class="row between" style="padding:6px 0;">
+        <span>${m.taskName} · ${m.dayLabel}</span>
+        ${m.day.status==='pending' ? `<button class="btn btn-primary" onclick="markDayDone('${m.ownerId}','${m.dayKey}')">✓ ביצעתי</button>` : `<span class="chip chip-gold">ממתין לאישור</span>`}
+      </div>`).join('') + `</div>`;
+  }
+  if(openDays.length){
+    html += `<div class="card"><h3>⚡ ימי משימה פתוחים לחטיפה</h3>` + openDays.map(o=>`
+      <div class="row between" style="padding:6px 0;">
+        <span>${o.taskName} · ${o.dayLabel}</span>
+        <button class="btn btn-sky" onclick="claimDaySnatch('${o.ownerId}','${o.dayKey}')">אני לוקח/ת</button>
+      </div>`).join('') + `</div>`;
+  }
+  html += `<div class="card"><h3>🎯 משימות בונוס</h3>`;
+  if(bonusTasks.length===0){
+    html += `<p class="muted">אין כרגע משימות בונוס זמינות.</p>`;
+  } else {
+    html += bonusTasks.map(t=>{
+      let action = '';
+      if(t.status==='open') action = `<button class="btn btn-sky btn-block" onclick="claimSnatchTask('${t.id}')">אני לוקח/ת</button>`;
+      else if(t.status==='claimed' && t.claimedBy===kid.id) action = `<button class="btn btn-primary btn-block" onclick="kidCompleteSnatchTask('${t.id}')">✓ ביצעתי</button>`;
+      else if(t.status==='waiting_approval' && t.claimedBy===kid.id) action = `<div class="chip chip-gold">ממתין לאישור הורה</div>`;
+      return `<div class="snatch-card">
+        <b>${t.title}</b><br>
+        <span class="muted">${t.desc||''}</span><br>
+        <span class="chip chip-gold" style="margin-top:6px;">${t.reward} ${t.currency==='money'?'₪':'נק׳'}</span>
+        <div style="margin-top:8px;">${action}</div>
+      </div>`;
+    }).join('');
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderKidStats(){
+  const kid = getKid(session.kidId);
+  const bonusProgress = (kid.totalWeeklyCompletions||0) % state.rewardConfig.weeksForBonus;
+  return `
+    <div class="card" style="text-align:center;">
+      <p class="muted">היתרה שלי</p>
+      <div class="money-big">${kidBalance(kid.id)} ₪</div>
+      <p class="muted" style="margin-top:6px;">שולם עד כה: ${kidTotalPaid(kid.id)} ₪ · נקודות: ${kidPoints(kid.id)}</p>
+    </div>
+    <div class="card">
+      <h3>התקדמות לבונוס החודשי</h3>
+      <div class="progressbar"><div style="width:${(bonusProgress/state.rewardConfig.weeksForBonus)*100}%"></div></div>
+      <p class="muted" style="margin-top:6px;">${bonusProgress}/${state.rewardConfig.weeksForBonus} שבועות מלאים · בונוס הבא: ${state.rewardConfig.bonusAmount} ₪</p>
+    </div>
+    <div class="card row between">
+      <div><span class="emoji" style="font-size:26px;">🔥</span></div>
+      <div style="flex:1;"><b>${kid.streak||0}</b> שבועות ברצף</div>
+    </div>
+    <div class="card">
+      <h3>משימות שבועיות שהושלמו החודש</h3>
+      <p style="font-size:26px; font-weight:800; color:var(--primary-dark); margin:0;">${kidWeeklyCompletionsThisMonth(kid.id)}</p>
+    </div>
+    <div class="card">
+      <h3>היסטוריה</h3>
+      ${kidLedger(kid.id).slice().reverse().map(l=>{
+        const label = {weekly:'שבוע מלא',bonus:'בונוס',snatch:'חטיפה',payment:'תשלום'}[l.type]||l.type;
+        const sign = l.amount>=0?'+':'';
+        return `<div class="row between" style="padding:4px 0; font-size:13px;">
+          <span class="muted">${fmtDate(l.date)} · ${label}</span>
+          <b style="color:${l.amount>=0?'var(--sage-dark)':'var(--coral-dark)'}">${sign}${l.amount} ${l.currency==='money'?'₪':'נק׳'}</b>
+        </div>`;
+      }).join('') || '<p class="muted">אין עדיין תנועות.</p>'}
+    </div>
+  `;
+}
+
+function renderKidApp(){
+  const kid = getKid(session.kidId);
+  if(!kid){ session={role:null,kidId:null}; return renderLogin(); }
+  let body = '';
+  if(ui.kidTab==='today') body = renderKidToday();
+  else if(ui.kidTab==='snatch') body = renderKidSnatch();
+  else if(ui.kidTab==='stats') body = renderKidStats();
+
+  return `
+    <div class="header">
+      <div class="title">🏆 אלוף האלופים</div>
+      <button class="icon-btn" onclick="logout()">יציאה</button>
+    </div>
+    <div class="content">${body}</div>
+    <div class="bottom-nav">
+      <button class="nav-btn ${ui.kidTab==='today'?'active':''}" onclick="switchKidTab('today')"><span class="emoji">🏠</span>היום</button>
+      <button class="nav-btn ${ui.kidTab==='snatch'?'active':''}" onclick="switchKidTab('snatch')"><span class="emoji">⚡</span>חטיפות</button>
+      <button class="nav-btn ${ui.kidTab==='stats'?'active':''}" onclick="switchKidTab('stats')"><span class="emoji">⭐</span>ההישגים שלי</button>
+    </div>
+  `;
+}
+
+/* ============ MAIN RENDER ============ */
+function render(){
+  const app = document.getElementById('app');
+  if(!state){
+    app.innerHTML = `<div class="empty-state" style="padding-top:60px;">טוען...</div>`;
+    return;
+  }
+  if(!session.role){ app.innerHTML = renderLogin(); return; }
+  if(session.role==='parent'){ app.innerHTML = renderParentApp(); return; }
+  if(session.role==='kid'){ app.innerHTML = renderKidApp(); return; }
+}
+
+/* ============ INIT ============ */
+async function init(){
+  const loaded = await loadState();
+  state = loaded || defaultState();
+  render();
+}
+init();
+</script>
+</body>
+</html>
