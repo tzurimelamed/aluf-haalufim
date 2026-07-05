@@ -354,6 +354,45 @@
   <div class="modal-box" id="modalBox"></div>
 </div>
 
+<!-- ============ FIREBASE SETUP ============
+     1. Create a free project at https://console.firebase.google.com
+     2. Enable "Firestore Database" (Build > Firestore Database > Create database > test mode)
+     3. Register a Web App (Project Overview > "</>" icon) and copy the config object it gives you
+     4. Paste that config object below, replacing the placeholder
+-->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBQ5qQkFBIWHccGTQP8tvd1_d7tqdOJSMw",
+    authDomain: "aluf-haalufim.firebaseapp.com",
+    projectId: "aluf-haalufim",
+    storageBucket: "aluf-haalufim.firebasestorage.app",
+    messagingSenderId: "979436257195",
+    appId: "1:979436257195:web:4180b1982ce888b1c79cee"
+  };
+
+  let db = null;
+  try {
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+  } catch (e) {
+    console.error('Firebase init failed - did you paste your config?', e);
+  }
+
+  window.__firebaseReady = !!db;
+  window.__firebaseLoadState = async function () {
+    if (!db) return null;
+    const snap = await getDoc(doc(db, 'family', 'state'));
+    return snap.exists() ? snap.data().json : null;
+  };
+  window.__firebaseSaveState = async function (stateJson) {
+    if (!db) return;
+    await setDoc(doc(db, 'family', 'state'), { json: stateJson, updatedAt: Date.now() });
+  };
+</script>
+
 <script>
 /* ============ UTILITIES ============ */
 const uid = () => 'id_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
@@ -427,18 +466,18 @@ let state = null;
 let session = { role:null, kidId:null }; // in-memory only, not persisted
 let ui = { parentTab:'home', kidTab:'today', loginError:'' };
 
-/* ============ STORAGE ============ */
+/* ============ STORAGE (Firebase Firestore) ============ */
 async function loadState(){
   try{
-    const res = await window.storage.get('family-state', true);
-    if(res && res.value) return JSON.parse(res.value);
-  }catch(e){ /* not found or error -> use defaults */ }
+    const json = await window.__firebaseLoadState();
+    if(json) return JSON.parse(json);
+  }catch(e){ console.error('שגיאת טעינה מ-Firebase', e); }
   return null;
 }
 async function saveState(){
   try{
-    await window.storage.set('family-state', JSON.stringify(state), true);
-  }catch(e){ console.error('שגיאת שמירה', e); }
+    await window.__firebaseSaveState(JSON.stringify(state));
+  }catch(e){ console.error('שגיאת שמירה ל-Firebase', e); }
 }
 async function persistAndRender(){
   await saveState();
@@ -1347,7 +1386,23 @@ function render(){
 }
 
 /* ============ INIT ============ */
+async function waitForFirebaseReady(maxWaitMs){
+  const start = Date.now();
+  while(typeof window.__firebaseReady === 'undefined' && (Date.now() - start) < maxWaitMs){
+    await new Promise(r => setTimeout(r, 50));
+  }
+}
 async function init(){
+  await waitForFirebaseReady(6000);
+  if(!window.__firebaseReady){
+    document.getElementById('app').innerHTML = `
+      <div class="empty-state" style="padding-top:60px;">
+        <span class="emoji">🔧</span>
+        <b>עדיין לא חובר ל-Firebase</b><br>
+        <p class="muted">יש להדביק את פרטי הקונפיגורציה מפרויקט ה-Firebase שלכם בקוד (בראש הקובץ, תחת firebaseConfig) כדי שהאפליקציה תוכל לשמור נתונים. אם כבר הדבקתם - נסו לרענן את הדף.</p>
+      </div>`;
+    return;
+  }
   const loaded = await loadState();
   state = loaded || defaultState();
   render();
