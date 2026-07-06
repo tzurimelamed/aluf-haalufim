@@ -481,8 +481,22 @@ function defaultState(){
 }
 
 let state = null;
-let session = { role:null, kidId:null }; // in-memory only, not persisted
+let session = { role:null, kidId:null };
 let ui = { parentTab:'home', kidTab:'today', loginError:'' };
+
+function saveSession(){
+  try{ localStorage.setItem('aluf-session', JSON.stringify(session)); }catch(e){}
+}
+function loadSession(){
+  try{
+    const raw = localStorage.getItem('aluf-session');
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return {role:null, kidId:null};
+}
+function clearSession(){
+  try{ localStorage.removeItem('aluf-session'); }catch(e){}
+}
 
 function showDebug(msg){
   const b = document.getElementById('debugBanner');
@@ -584,6 +598,7 @@ function doLogin(){
   const p = document.getElementById('loginPass').value;
   if(u===state.parentAuth.username && p===state.parentAuth.password){
     session = {role:'parent', kidId:null};
+    saveSession();
     ui.parentTab='home';
     render();
     return;
@@ -591,6 +606,7 @@ function doLogin(){
   const kid = state.kids.find(k=>k.username===u && k.password===p);
   if(kid){
     session = {role:'kid', kidId:kid.id};
+    saveSession();
     ui.kidTab='today';
     render();
     return;
@@ -598,7 +614,7 @@ function doLogin(){
   ui.loginError = 'שם משתמש או סיסמה שגויים';
   render();
 }
-function logout(){ session={role:null,kidId:null}; render(); }
+function logout(){ session={role:null,kidId:null}; clearSession(); render(); }
 
 /* ============ ACTIONS: KIDS ============ */
 function openKidForm(kidId){
@@ -1427,6 +1443,15 @@ async function init(){
   }
   const loaded = await loadState();
   state = loaded || defaultState();
+  const savedSession = loadSession();
+  if(savedSession.role==='parent'){
+    session = savedSession;
+  } else if(savedSession.role==='kid' && getKid(savedSession.kidId)){
+    session = savedSession;
+  } else {
+    session = {role:null, kidId:null};
+    clearSession();
+  }
   render();
 }
 init();
