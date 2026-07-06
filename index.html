@@ -353,6 +353,7 @@
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal-box" id="modalBox"></div>
 </div>
+<div id="debugBanner" style="display:none; position:fixed; bottom:0; right:0; left:0; z-index:999; background:#5c1a1a; color:#fff; font-family:monospace; font-size:12px; padding:10px; max-height:40vh; overflow-y:auto; direction:ltr; text-align:left; white-space:pre-wrap;"></div>
 
 <!-- ============ FIREBASE SETUP ============
      1. Create a free project at https://console.firebase.google.com
@@ -379,17 +380,34 @@
     db = getFirestore(app);
   } catch (e) {
     console.error('Firebase init failed - did you paste your config?', e);
+    const b = document.getElementById('debugBanner');
+    b.style.display = 'block';
+    b.textContent = 'FIREBASE INIT ERROR: ' + (e && e.message ? e.message : e);
   }
 
   window.__firebaseReady = !!db;
   window.__firebaseLoadState = async function () {
     if (!db) return null;
-    const snap = await getDoc(doc(db, 'family', 'state'));
-    return snap.exists() ? snap.data().json : null;
+    try {
+      const snap = await getDoc(doc(db, 'family', 'state'));
+      return snap.exists() ? snap.data().json : null;
+    } catch (e) {
+      const b = document.getElementById('debugBanner');
+      b.style.display = 'block';
+      b.textContent = 'FIREBASE READ ERROR: ' + (e && e.message ? e.message : e);
+      throw e;
+    }
   };
   window.__firebaseSaveState = async function (stateJson) {
     if (!db) return;
-    await setDoc(doc(db, 'family', 'state'), { json: stateJson, updatedAt: Date.now() });
+    try {
+      await setDoc(doc(db, 'family', 'state'), { json: stateJson, updatedAt: Date.now() });
+    } catch (e) {
+      const b = document.getElementById('debugBanner');
+      b.style.display = 'block';
+      b.textContent = 'FIREBASE WRITE ERROR: ' + (e && e.message ? e.message : e);
+      throw e;
+    }
   };
 </script>
 
@@ -466,18 +484,22 @@ let state = null;
 let session = { role:null, kidId:null }; // in-memory only, not persisted
 let ui = { parentTab:'home', kidTab:'today', loginError:'' };
 
+function showDebug(msg){
+  const b = document.getElementById('debugBanner');
+  if(b){ b.style.display='block'; b.textContent = msg; }
+}
 /* ============ STORAGE (Firebase Firestore) ============ */
 async function loadState(){
   try{
     const json = await window.__firebaseLoadState();
     if(json) return JSON.parse(json);
-  }catch(e){ console.error('שגיאת טעינה מ-Firebase', e); }
+  }catch(e){ showDebug('LOAD ERROR: ' + (e && e.message ? e.message : e)); }
   return null;
 }
 async function saveState(){
   try{
     await window.__firebaseSaveState(JSON.stringify(state));
-  }catch(e){ console.error('שגיאת שמירה ל-Firebase', e); }
+  }catch(e){ showDebug('SAVE ERROR: ' + (e && e.message ? e.message : e)); }
 }
 async function persistAndRender(){
   await saveState();
