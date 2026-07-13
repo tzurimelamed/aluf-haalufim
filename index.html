@@ -483,7 +483,6 @@ function defaultState(){
       bonusAmount:10,
       weeksForBonus:4,
       fixHours:24,
-      snatchDayAmount:5,
       dailyDeadline:'20:00',
     },
     weeks: {},
@@ -495,7 +494,19 @@ function defaultState(){
 
 let state = null;
 let session = { role:null, kidId:null };
-let ui = { parentTab:'home', kidTab:'today', loginError:'' };
+let ui = { parentTab:'home', kidTab:'today', loginError:'', viewWeek:null };
+
+// The week currently being viewed/edited (defaults to current week)
+function activeWeekKey(){ return ui.viewWeek || currentWeekKey(); }
+function isViewingCurrentWeek(){ return activeWeekKey() === currentWeekKey(); }
+function goToWeek(weekKey){ ui.viewWeek = weekKey; render(); }
+function shiftViewWeek(deltaWeeks){
+  const d = new Date(activeWeekKey());
+  d.setDate(d.getDate() + deltaWeeks*7);
+  ui.viewWeek = weekKeyFor(d);
+  render();
+}
+function resetToCurrentWeek(){ ui.viewWeek = null; render(); }
 
 function saveSession(){
   try{ localStorage.setItem('aluf-session', JSON.stringify(session)); }catch(e){}
@@ -645,45 +656,140 @@ function getEffectiveDotState(day, isToday, weekKey, kidId, dayKey){
   return 'pending';
 }
 function kidLedger(kidId){ return state.ledger.filter(l=>l.kidId===kidId); }
-function kidBalance(kidId){
-  return kidLedger(kidId).reduce((sum,l)=> sum + (l.currency==='money' ? l.amount : 0), 0);
+
+/* ---- Live earnings computation (prorated per active day) ---- */
+function activeDaysCountForWeek(weekKey, kidId){
+  const wk = state.weeks[weekKey];
+  if(!wk) return 0;
+  const days = wk.days[kidId];
+  if(!days) return 0;
+  let count = 0;
+  DAYS.forEach(d=>{
+    // A day counts toward the prorated denominator if it's NOT inactive (globally or per-kid)
+    if(!isDayInactiveForKid(weekKey, kidId, d.key)) count++;
+  });
+  return count;
 }
-function kidPoints(kidId){
-  return kidLedger(kidId).reduce((sum,l)=> sum + (l.currency==='points' ? l.amount : 0), 0);
+// Per-day value for a given week for a given kid = weeklyAmount / active days
+function perDayValue(weekKey, kidId){
+  const active = activeDaysCountForWeek(weekKey, kidId);
+  if(active<=0) return 0;
+  return state.rewardConfig.weeklyAmount / active;
+}
+// Compute what a kid earned in a given week (approved own days, prorated) + snatched days from others
+function weekEarningsForKid(weekKey, kidId){
+  const wk = state.weeks[weekKey];
+  if(!wk) return 0;
+  let total = 0;
+  // 1. Own assigned days that were approved
+  const myDays = wk.days[kidId];
+  if(myDays){
+    const val = perDayValue(weekKey, kidId);
+    DAYS.forEach(d=>{
+      if(isDayInactiveForKid(weekKey, kidId, d.key)) return; // inactive: no money, but doesn't hurt
+      const day = myDays[d.key];
+      if(day.status==='approved' && !day.snatchedBy) total += val;
+    });
+  }
+  // 2. Days on OTHER kids' rows that THIS kid snatched and got approved
+  Object.keys(wk.days).forEach(ownerId=>{
+    if(ownerId===kidId) return;
+    const ownerVal = perDayValue(weekKey, ownerId);
+    const ownerDays = wk.days[ownerId];
+    DAYS.forEach(d=>{
+      if(isDayInactiveForKid(weekKey, ownerId, d.key)) return;
+      const day = ownerDays[d.key];
+      if(day.status==='approved' && day.snatchedBy===kidId) total += ownerVal;
+    });
+  });
+  return Math.round(total*100)/100;
+}
+// Did the kid fully complete all their active days this week (for monthly bonus + streak)?
+function isWeekFullForKid(weekKey, kidId){
+  const wk = state.weeks[weekKey];
+  if(!wk || !wk.assignments[kidId]) return false;
+  const days = wk.days[kidId];
+  if(!days) return false;
+  let activeExists = false;
+  const allActiveApproved = DAYS.every(d=>{
+    if(isDayInactiveForKid(weekKey, kidId, d.key)) return true; // inactive doesn't block
+    activeExists = true;
+    const day = days[d.key];
+    // approved by kid, OR snatched away & approved (still counts week as "handled")
+    return day.status==='approved';
+  });
+  return activeExists && allActiveApproved;
+}
+function allWeekKeysSorted(){
+  return Object.keys(state.weeks).sort();
+}
+// Count full weeks a kid has completed up to & including a given week (chronological)
+function fullWeeksCountUpTo(weekKey, kidId){
+  const keys = allWeekKeysSorted().filter(k=>k<=weekKey);
+  let count = 0;
+  keys.forEach(k=>{ if(isWeekFullForKid(k, kidId)) count++; });
+  return count;
+}
+// Monthly bonus earned for a specific week = if completing it hits a multiple of weeksForBonus
+function bonusForWeek(weekKey, kidId){
+  if(!isWeekFullForKid(weekKey, kidId)) return 0;
+  const countUpTo = fullWeeksCountUpTo(weekKey, kidId);
+  if(countUpTo>0 && countUpTo % state.rewardConfig.weeksForBonus === 0){
+    return state.rewardConfig.bonusAmount;
+  }
+  return 0;
+}
+// Total computed earnings (weekly prorated + bonuses) across all weeks
+function kidComputedEarnings(kidId){
+  let total = 0;
+  allWeekKeysSorted().forEach(wk=>{
+    total += weekEarningsForKid(wk, kidId);
+    total += bonusForWeek(wk, kidId);
+  });
+  return Math.round(total*100)/100;
+}
+// One-off snatch TASK rewards (money) that were approved
+function kidSnatchTaskEarnings(kidId){
+  return state.snatchTasks
+    .filter(t=>t.status==='approved' && t.claimedBy===kidId && t.currency==='money')
+    .reduce((s,t)=>s+(t.reward||0),0);
+}
+function kidSnatchTaskPoints(kidId){
+  return state.snatchTasks
+    .filter(t=>t.status==='approved' && t.claimedBy===kidId && t.currency==='points')
+    .reduce((s,t)=>s+(t.reward||0),0);
 }
 function kidTotalPaid(kidId){
   return kidLedger(kidId).filter(l=>l.type==='payment').reduce((s,l)=>s+Math.abs(l.amount),0);
 }
+function kidBalance(kidId){
+  const earned = kidComputedEarnings(kidId) + kidSnatchTaskEarnings(kidId);
+  const paid = kidTotalPaid(kidId);
+  return Math.round((earned - paid)*100)/100;
+}
+function kidPoints(kidId){
+  return kidSnatchTaskPoints(kidId);
+}
 function kidWeeklyCompletionsThisMonth(kidId){
   const now = new Date();
-  return kidLedger(kidId).filter(l=>{
-    if(l.type!=='weekly') return false;
-    const d = new Date(l.date);
+  return allWeekKeysSorted().filter(wk=>{
+    if(!isWeekFullForKid(wk, kidId)) return false;
+    const d = new Date(wk);
     return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
   }).length;
 }
+function kidStreak(kidId){
+  // consecutive full weeks ending at the most recent week
+  const keys = allWeekKeysSorted();
+  let streak = 0;
+  for(let i=keys.length-1;i>=0;i--){
+    if(isWeekFullForKid(keys[i], kidId)) streak++;
+    else break;
+  }
+  return streak;
+}
 function addLedger(kidId, type, amount, currency, label){
   state.ledger.push({id:uid(), kidId, type, amount, currency, label, date: nowIso()});
-}
-
-function awardWeekIfComplete(weekKey, kidId){
-  const wk = ensureWeek(weekKey);
-  const taskId = wk.assignments[kidId];
-  if(!taskId) return;
-  const days = wk.days[kidId];
-  if(!days) return;
-  const allDone = DAYS.every(d => isDayFulfilledCtx(weekKey, kidId, d.key, days[d.key]));
-  if(allDone && !wk.awarded[kidId]){
-    wk.awarded[kidId] = true;
-    const kid = getKid(kidId);
-    const task = getTask(taskId);
-    addLedger(kidId, 'weekly', state.rewardConfig.weeklyAmount, 'money', 'השלמת שבוע: ' + (task?task.name:'משימה'));
-    kid.totalWeeklyCompletions = (kid.totalWeeklyCompletions||0) + 1;
-    kid.streak = (kid.streak||0) + 1;
-    if(kid.totalWeeklyCompletions % state.rewardConfig.weeksForBonus === 0){
-      addLedger(kidId, 'bonus', state.rewardConfig.bonusAmount, 'money', 'בונוס על ' + state.rewardConfig.weeksForBonus + ' שבועות מלאים');
-    }
-  }
 }
 
 /* ============ ACTIONS: AUTH ============ */
@@ -811,13 +917,14 @@ function moveTask(taskId, dir){
 
 /* ============ ACTIONS: WEEK ASSIGNMENT ============ */
 function assignKidTask(kidId, taskId){
-  const wk = ensureWeek(currentWeekKey());
-  if(taskId){ wk.assignments[kidId] = taskId; ensureKidDays(currentWeekKey(), kidId); }
+  const wkKey = activeWeekKey();
+  const wk = ensureWeek(wkKey);
+  if(taskId){ wk.assignments[kidId] = taskId; ensureKidDays(wkKey, kidId); }
   else { delete wk.assignments[kidId]; }
   persistAndRender();
 }
 function copyPreviousWeek(){
-  const cur = currentWeekKey();
+  const cur = activeWeekKey();
   const prev = prevWeekKey(cur);
   const prevWk = state.weeks[prev];
   if(!prevWk){ alert('אין נתונים לשבוע הקודם'); return; }
@@ -828,41 +935,56 @@ function copyPreviousWeek(){
   });
   persistAndRender();
 }
+// Fair rotation: a kid gets a task again only after all eligible kids have done it.
+// We look at history across all past weeks to count how many times each kid did each task.
+function taskHistoryCount(kidId, taskId){
+  let count = 0;
+  Object.values(state.weeks).forEach(wk=>{
+    if(wk.assignments && wk.assignments[kidId]===taskId) count++;
+  });
+  return count;
+}
 function autoRotateWeek(){
-  const cur = currentWeekKey();
+  const cur = activeWeekKey();
   const wk = ensureWeek(cur);
-  const kids = [...state.kids].sort(()=>Math.random()-0.5);
   const tasks = sortedTasks();
   const usedKids = new Set();
+  // For each task, pick the eligible kid who has done THIS task the fewest times historically
+  // (excluding the current week we're assigning), breaking ties by who's done fewest tasks overall.
   tasks.forEach(task=>{
-    const candidate = kids.find(k=>!usedKids.has(k.id) && isKidAllowedForTask(k.id, task));
-    if(candidate){
-      wk.assignments[candidate.id] = task.id;
-      usedKids.add(candidate.id);
-      ensureKidDays(cur, candidate.id);
-    }
+    const eligible = state.kids.filter(k=>!usedKids.has(k.id) && isKidAllowedForTask(k.id, task));
+    if(eligible.length===0) return;
+    eligible.sort((a,b)=>{
+      const ca = taskHistoryCount(a.id, task.id);
+      const cb = taskHistoryCount(b.id, task.id);
+      if(ca!==cb) return ca-cb;
+      // tie-break: fewer total assignments overall, then random
+      const ta = tasks.reduce((s,t)=>s+taskHistoryCount(a.id,t.id),0);
+      const tb = tasks.reduce((s,t)=>s+taskHistoryCount(b.id,t.id),0);
+      if(ta!==tb) return ta-tb;
+      return Math.random()-0.5;
+    });
+    const chosen = eligible[0];
+    wk.assignments[chosen.id] = task.id;
+    usedKids.add(chosen.id);
+    ensureKidDays(cur, chosen.id);
   });
   persistAndRender();
 }
 
 /* ============ ACTIONS: APPROVALS ============ */
 function markDayDone(ownerKidId, dayKey){
-  const wk = ensureWeek(currentWeekKey());
+  const wk = ensureWeek(activeWeekKey());
   const day = wk.days[ownerKidId][dayKey];
   day.status = 'waiting_approval';
   persistAndRender();
 }
 function approveDay(ownerKidId, dayKey){
-  const weekKey = currentWeekKey();
+  const weekKey = activeWeekKey();
   const wk = ensureWeek(weekKey);
   const day = wk.days[ownerKidId][dayKey];
   day.status = 'approved';
-  if(day.snatchedBy){
-    const dayLabel = DAYS.find(d=>d.key===dayKey).label;
-    const taskName = getTask(wk.assignments[ownerKidId])?.name || 'משימה';
-    addLedger(day.snatchedBy, 'snatch', state.rewardConfig.snatchDayAmount, 'money', 'חטיפת משימה יומית: ' + taskName + ' (' + dayLabel + ')');
-  }
-  awardWeekIfComplete(weekKey, ownerKidId);
+  // Earnings (including snatched-day credit) are computed live — no ledger writes needed.
   persistAndRender();
 }
 function openRejectModal(ownerKidId, dayKey){
@@ -876,7 +998,7 @@ function openRejectModal(ownerKidId, dayKey){
 function confirmReject(ownerKidId, dayKey){
   const note = document.getElementById('rejectNote').value.trim();
   const hours = parseFloat(document.getElementById('rejectHours').value) || state.rewardConfig.fixHours;
-  const wk = ensureWeek(currentWeekKey());
+  const wk = ensureWeek(activeWeekKey());
   const day = wk.days[ownerKidId][dayKey];
   day.status = 'needs_fix';
   day.note = note;
@@ -886,7 +1008,7 @@ function confirmReject(ownerKidId, dayKey){
   persistAndRender();
 }
 function claimDaySnatch(ownerKidId, dayKey){
-  const wk = ensureWeek(currentWeekKey());
+  const wk = ensureWeek(activeWeekKey());
   const day = wk.days[ownerKidId][dayKey];
   day.status = 'pending';
   day.snatchedBy = session.kidId;
@@ -896,8 +1018,8 @@ function claimDaySnatch(ownerKidId, dayKey){
 function transferDayToSnatch(ownerKidId, dayKey){
   const kid = getKid(ownerKidId);
   const dayLabel = DAYS.find(d=>d.key===dayKey).label;
-  if(!confirm(`להעביר את משימת ${dayLabel} של ${kid.name} למשימות לחטיפה? ילד אחר יוכל לקחת אותה.`)) return;
-  const wk = ensureWeek(currentWeekKey());
+  if(!confirm(`להעביר את משימת ${dayLabel} של ${kid.name} למשימות לחטיפה?\nהילד יישאר במצב דחייה ליום זה ולא יקבל עליו כסף אלא אם ילד אחר יחטוף ויבצע.`)) return;
+  const wk = ensureWeek(activeWeekKey());
   const day = wk.days[ownerKidId][dayKey];
   day.status = 'open_snatch';
   day.snatchedBy = null;
@@ -905,8 +1027,9 @@ function transferDayToSnatch(ownerKidId, dayKey){
   persistAndRender();
 }
 function toggleDayInactiveForKid(ownerKidId, dayKey){
-  const wk = ensureWeek(currentWeekKey());
-  ensureKidDays(currentWeekKey(), ownerKidId);
+  const wkKey = activeWeekKey();
+  const wk = ensureWeek(wkKey);
+  ensureKidDays(wkKey, ownerKidId);
   const day = wk.days[ownerKidId][dayKey];
   if(day.status==='inactive'){
     day.status = 'pending';
@@ -918,7 +1041,7 @@ function toggleDayInactiveForKid(ownerKidId, dayKey){
   persistAndRender();
 }
 function toggleGlobalInactiveDay(dayKey){
-  const weekKey = currentWeekKey();
+  const weekKey = activeWeekKey();
   if(!state.globalInactiveDays) state.globalInactiveDays = {};
   if(!state.globalInactiveDays[weekKey]) state.globalInactiveDays[weekKey] = {};
   state.globalInactiveDays[weekKey][dayKey] = !state.globalInactiveDays[weekKey][dayKey];
@@ -928,17 +1051,13 @@ function resetApprovedDay(ownerKidId, dayKey){
   const kid = getKid(ownerKidId);
   const dayLabel = DAYS.find(d=>d.key===dayKey).label;
   if(!confirm(`לאפס את הסימון של ${dayLabel} אצל ${kid.name}? המשימה תחזור למצב "ממתין לביצוע".`)) return;
-  const weekKey = currentWeekKey();
+  const weekKey = activeWeekKey();
   const wk = ensureWeek(weekKey);
   const day = wk.days[ownerKidId][dayKey];
   day.status = 'pending';
   day.note = '';
   day.fixDeadline = null;
-  // if the week was already awarded, revoke it so it can be re-earned
-  if(wk.awarded[ownerKidId]){
-    wk.awarded[ownerKidId] = false;
-    const idx = state.ledger.findIndex(l=>l.kidId===ownerKidId && l.type==='weekly' && l.label.includes(getTask(wk.assignments[ownerKidId])?.name||''));
-  }
+  // Earnings recompute automatically.
   persistAndRender();
 }
 
@@ -1003,7 +1122,7 @@ function kidCompleteSnatchTask(taskId){
 function approveSnatchTask(taskId){
   const t = state.snatchTasks.find(s=>s.id===taskId);
   t.status = 'approved';
-  addLedger(t.claimedBy, 'snatch', t.reward, t.currency, 'משימת חטיפה: ' + t.title);
+  // Reward is computed live from approved snatch tasks — no ledger write.
   persistAndRender();
 }
 function rejectSnatchTask(taskId){
@@ -1039,7 +1158,6 @@ function openRewardConfigModal(){
     <div class="field"><label class="field-label">בונוס חודשי (₪)</label><input class="input" type="number" id="cfgBonus" value="${c.bonusAmount}"></div>
     <div class="field"><label class="field-label">כמות שבועות מלאים לבונוס</label><input class="input" type="number" id="cfgWeeksForBonus" value="${c.weeksForBonus}"></div>
     <div class="field"><label class="field-label">זמן ברירת מחדל לתיקון (שעות)</label><input class="input" type="number" id="cfgFixHours" value="${c.fixHours}"></div>
-    <div class="field"><label class="field-label">תגמול על חטיפת יום משימה (₪)</label><input class="input" type="number" id="cfgSnatchDay" value="${c.snatchDayAmount}"></div>
     <div class="field"><label class="field-label">שעת יעד יומית לביצוע משימה</label><input class="input" type="time" id="cfgDailyDeadline" value="${c.dailyDeadline||'20:00'}"></div>
     <button class="btn btn-primary btn-block" onclick="saveRewardConfig()">שמירה</button>
     <hr class="sep">
@@ -1054,7 +1172,6 @@ function saveRewardConfig(){
   state.rewardConfig.bonusAmount = parseFloat(document.getElementById('cfgBonus').value)||0;
   state.rewardConfig.weeksForBonus = parseInt(document.getElementById('cfgWeeksForBonus').value)||4;
   state.rewardConfig.fixHours = parseFloat(document.getElementById('cfgFixHours').value)||24;
-  state.rewardConfig.snatchDayAmount = parseFloat(document.getElementById('cfgSnatchDay').value)||0;
   state.rewardConfig.dailyDeadline = document.getElementById('cfgDailyDeadline').value || '20:00';
   closeModal();
   persistAndRender();
@@ -1114,7 +1231,7 @@ function openModal(html){
 function closeModal(){ document.getElementById('modalOverlay').classList.remove('open'); }
 
 /* ============ NAV ============ */
-function switchParentTab(tab){ ui.parentTab = tab; render(); }
+function switchParentTab(tab){ ui.parentTab = tab; ui.viewWeek = null; render(); }
 function switchKidTab(tab){ ui.kidTab = tab; render(); }
 
 /* ============ RENDER: LOGIN ============ */
@@ -1170,8 +1287,30 @@ function renderParentTrail(kidId, weekKey){
   }).join('')}</div>`;
 }
 
+function weekRangeLabel(weekKey){
+  const start = new Date(weekKey);
+  const end = new Date(weekKey);
+  end.setDate(end.getDate()+6);
+  const f = (d)=>d.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'});
+  return `${f(start)}–${f(end)}`;
+}
+function renderWeekNav(){
+  const wkKey = activeWeekKey();
+  const isCurrent = isViewingCurrentWeek();
+  return `<div class="card" style="padding:10px 12px;">
+    <div class="row between">
+      <button class="icon-btn" style="background:#F1EAE0; color:var(--ink-soft);" onclick="shiftViewWeek(-1)">‹ שבוע קודם</button>
+      <div style="text-align:center;">
+        <b style="font-size:14px;">${isCurrent?'השבוע הנוכחי':'שבוע'}</b><br>
+        <span class="muted" style="font-size:12px;">${weekRangeLabel(wkKey)}</span>
+      </div>
+      <button class="icon-btn" style="background:#F1EAE0; color:var(--ink-soft);" onclick="shiftViewWeek(1)">שבוע הבא ›</button>
+    </div>
+    ${!isCurrent?`<button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="resetToCurrentWeek()">חזרה לשבוע הנוכחי</button>`:''}
+  </div>`;
+}
 function renderParentHome(){
-  const weekKey = currentWeekKey();
+  const weekKey = activeWeekKey();
   if(state.kids.length===0){
     return `<div class="empty-state"><span class="emoji">👨‍👩‍👧‍👦</span>עוד לא הוספתם ילדים.<br><a class="linklike" onclick="switchParentTab('kids')">מעבר להוספת ילדים</a></div>`;
   }
@@ -1179,10 +1318,14 @@ function renderParentHome(){
     const wk = ensureWeek(weekKey);
     const taskId = wk.assignments[kid.id];
     const task = taskId ? getTask(taskId) : null;
+    const weekEarn = weekEarningsForKid(weekKey, kid.id) + bonusForWeek(weekKey, kid.id);
     return `<div class="card">
       <div class="row between">
         <div class="row"><div class="avatar">${kid.avatar||'😊'}</div><div><b>${kid.name}</b><br><span class="muted">${task?task.name:'אין משימה השבוע'}</span></div></div>
-        <div class="chip chip-gold">${kidBalance(kid.id)} ₪</div>
+        <div style="text-align:left;">
+          <div class="chip chip-gold">${kidBalance(kid.id)} ₪ סה״כ</div><br>
+          <span class="muted" style="font-size:11px;">שבוע זה: ${weekEarn} ₪</span>
+        </div>
       </div>
       <hr class="sep">
       ${renderParentTrail(kid.id, weekKey)}
@@ -1204,7 +1347,7 @@ function renderParentHome(){
   const pendingSnatchTasks = state.snatchTasks.filter(t=>t.status==='waiting_approval');
 
   return `
-    <h3 style="margin:2px 0 12px;">שבוע נוכחי (${fmtDate(weekKey)})</h3>
+    ${renderWeekNav()}
     ${kidsRows}
     ${openSnatchDays.length?`<div class="card"><h3>⚡ ימי משימה פתוחים לחטיפה</h3>${openSnatchDays.join('')}</div>`:''}
     ${pendingSnatchTasks.length?`<div class="card"><h3>🎯 משימות חטיפה ממתינות לאישור</h3>${pendingSnatchTasks.map(t=>`
@@ -1260,7 +1403,7 @@ function renderParentTasks(){
 }
 
 function renderParentWeek(){
-  const weekKey = currentWeekKey();
+  const weekKey = activeWeekKey();
   const wk = ensureWeek(weekKey);
   const rows = state.kids.map(kid=>{
     const options = `<option value="">— ללא —</option>` + sortedTasks().filter(t=>isKidAllowedForTask(kid.id,t)).map(t=>`<option value="${t.id}" ${wk.assignments[kid.id]===t.id?'selected':''}>${t.name}</option>`).join('');
@@ -1270,13 +1413,15 @@ function renderParentWeek(){
     </div>`;
   }).join('') || '<p class="muted">אין עדיין ילדים.</p>';
   return `
+    ${renderWeekNav()}
     <div class="card">
-      <h3>הקצאת משימות לשבוע (${fmtDate(weekKey)})</h3>
+      <h3>הקצאת משימות לשבוע</h3>
       ${rows}
       <div class="row" style="margin-top:14px; gap:8px;">
         <button class="btn btn-outline" onclick="copyPreviousWeek()">שכפול משבוע קודם</button>
-        <button class="btn btn-outline" onclick="autoRotateWeek()">רוטציה אוטומטית</button>
+        <button class="btn btn-outline" onclick="autoRotateWeek()">רוטציה הוגנת</button>
       </div>
+      <p class="muted" style="margin-top:8px;">רוטציה הוגנת: כל ילד יקבל משימה מסוימת שוב רק לאחר שכל שאר הילדים שיכולים לבצע אותה כבר קיבלו אותה.</p>
     </div>
     <div class="card">
       <h3>ימים לא פעילים (כל המשפחה)</h3>
@@ -1316,22 +1461,34 @@ function renderParentSnatch(){
 
 function renderParentReports(){
   const kidsBlocks = state.kids.map(kid=>{
-    const entries = kidLedger(kid.id).slice().reverse();
-    const rows = entries.map(l=>{
-      const sign = l.amount>=0 ? '+' : '';
-      const label = {weekly:'שבוע מלא',bonus:'בונוס',snatch:'חטיפה',payment:'תשלום'}[l.type]||l.type;
-      return `<div class="row between" style="padding:4px 0; font-size:13px;">
-        <span class="muted">${fmtDate(l.date)} · ${label} · ${l.label}</span>
-        <b style="color:${l.amount>=0?'var(--sage-dark)':'var(--coral-dark)'}">${sign}${l.amount} ${l.currency==='money'?'₪':'נק׳'}</b>
+    const weekKeys = allWeekKeysSorted().filter(wk=>{
+      const w = state.weeks[wk];
+      return w && (w.assignments[kid.id] || weekEarningsForKid(wk, kid.id)>0);
+    }).reverse();
+    const weekRows = weekKeys.map(wk=>{
+      const earn = weekEarningsForKid(wk, kid.id);
+      const bonus = bonusForWeek(wk, kid.id);
+      const active = activeDaysCountForWeek(wk, kid.id);
+      const full = isWeekFullForKid(wk, kid.id);
+      return `<div class="row between" style="padding:5px 0; font-size:13px; border-bottom:1px solid var(--line);">
+        <span class="muted">${weekRangeLabel(wk)} · ${active} ימי פעילות${full?' · שבוע מלא ✓':''}${bonus>0?' · בונוס!':''}</span>
+        <b style="color:var(--sage-dark)">${earn+bonus} ₪</b>
       </div>`;
-    }).join('') || '<p class="muted">אין תנועות עדיין.</p>';
+    }).join('') || '<p class="muted">אין עדיין פעילות.</p>';
+    const payments = kidLedger(kid.id).filter(l=>l.type==='payment').slice().reverse();
+    const payRows = payments.map(l=>`<div class="row between" style="padding:4px 0; font-size:13px;">
+        <span class="muted">${fmtDate(l.date)} · תשלום · ${l.label}</span>
+        <b style="color:var(--coral-dark)">${l.amount} ₪</b>
+      </div>`).join('');
     return `<div class="card">
       <div class="row between">
-        <div class="row"><div class="avatar">${kid.avatar||'😊'}</div><b>${kid.name}</b></div>
-        <button class="btn btn-gold" onclick="openPaymentModal('${kid.id}')">סימון תשלום (${kidBalance(kid.id)} ₪)</button>
+        <div class="row"><div class="avatar">${kid.avatar||'😊'}</div><div><b>${kid.name}</b><br><span class="muted">יתרה: ${kidBalance(kid.id)} ₪</span></div></div>
+        <button class="btn btn-gold" onclick="openPaymentModal('${kid.id}')">סימון תשלום</button>
       </div>
       <hr class="sep">
-      ${rows}
+      <b style="font-size:13px; color:var(--primary-dark);">רווחים לפי שבוע</b>
+      ${weekRows}
+      ${payRows?`<b style="font-size:13px; color:var(--primary-dark); display:block; margin-top:8px;">תשלומים</b>${payRows}`:''}
     </div>`;
   }).join('') || '<p class="muted">אין עדיין ילדים.</p>';
   return kidsBlocks;
@@ -1348,7 +1505,7 @@ function renderParentSettings(){
   </div>
   <div class="card">
     <h3>הגדרות תגמול וכניסה</h3>
-    <p class="muted">תגמול שבועי: ${state.rewardConfig.weeklyAmount} ₪ · בונוס: ${state.rewardConfig.bonusAmount} ₪ אחרי ${state.rewardConfig.weeksForBonus} שבועות · זמן תיקון: ${state.rewardConfig.fixHours} שעות · תגמול חטיפת יום: ${state.rewardConfig.snatchDayAmount} ₪ · שעת יעד יומית: ${state.rewardConfig.dailyDeadline||'20:00'}</p>
+    <p class="muted">תגמול שבועי: ${state.rewardConfig.weeklyAmount} ₪ (מתחלק יחסית לפי ימי פעילות) · בונוס: ${state.rewardConfig.bonusAmount} ₪ אחרי ${state.rewardConfig.weeksForBonus} שבועות מלאים · זמן תיקון: ${state.rewardConfig.fixHours} שעות · שעת יעד יומית: ${state.rewardConfig.dailyDeadline||'20:00'}</p>
     <button class="btn btn-primary btn-block" onclick="openRewardConfigModal()">עריכת הגדרות</button>
   </div>
   <div class="card">
@@ -1548,8 +1705,23 @@ function renderKidSnatch(){
 
 function renderKidStats(){
   const kid = getKid(session.kidId);
-  const bonusProgress = (kid.totalWeeklyCompletions||0) % state.rewardConfig.weeksForBonus;
+  const fullWeeks = fullWeeksCountUpTo(currentWeekKey(), kid.id);
+  const bonusProgress = fullWeeks % state.rewardConfig.weeksForBonus;
   const notifStatus = notificationStatus();
+  const weekKeys = allWeekKeysSorted().filter(wk=>{
+    const w = state.weeks[wk];
+    return w && (w.assignments[kid.id] || weekEarningsForKid(wk, kid.id)>0);
+  }).reverse();
+  const weekRows = weekKeys.map(wk=>{
+    const earn = weekEarningsForKid(wk, kid.id);
+    const bonus = bonusForWeek(wk, kid.id);
+    const active = activeDaysCountForWeek(wk, kid.id);
+    const full = isWeekFullForKid(wk, kid.id);
+    return `<div class="row between" style="padding:5px 0; font-size:13px; border-bottom:1px solid var(--line);">
+      <span class="muted">${weekRangeLabel(wk)} · ${active} ימים${full?' · מלא ✓':''}${bonus>0?' 🎁':''}</span>
+      <b style="color:var(--sage-dark)">${earn+bonus} ₪</b>
+    </div>`;
+  }).join('') || '<p class="muted">אין עדיין פעילות.</p>';
   return `
     ${notifStatus!=='granted' ? `<div class="card"><h3>🔔 התראות</h3><p class="muted">קבל/י התראה כשהמשימה שלך מאושרת או דורשת תיקון.</p><button class="btn btn-primary btn-block" onclick="enableNotifications()">הפעלת התראות</button></div>` : ''}
     <div class="card" style="text-align:center;">
@@ -1564,22 +1736,15 @@ function renderKidStats(){
     </div>
     <div class="card row between">
       <div><span class="emoji" style="font-size:26px;">🔥</span></div>
-      <div style="flex:1;"><b>${kid.streak||0}</b> שבועות ברצף</div>
+      <div style="flex:1;"><b>${kidStreak(kid.id)}</b> שבועות ברצף</div>
     </div>
     <div class="card">
-      <h3>משימות שבועיות שהושלמו החודש</h3>
+      <h3>שבועות מלאים החודש</h3>
       <p style="font-size:26px; font-weight:800; color:var(--primary-dark); margin:0;">${kidWeeklyCompletionsThisMonth(kid.id)}</p>
     </div>
     <div class="card">
-      <h3>היסטוריה</h3>
-      ${kidLedger(kid.id).slice().reverse().map(l=>{
-        const label = {weekly:'שבוע מלא',bonus:'בונוס',snatch:'חטיפה',payment:'תשלום'}[l.type]||l.type;
-        const sign = l.amount>=0?'+':'';
-        return `<div class="row between" style="padding:4px 0; font-size:13px;">
-          <span class="muted">${fmtDate(l.date)} · ${label}</span>
-          <b style="color:${l.amount>=0?'var(--sage-dark)':'var(--coral-dark)'}">${sign}${l.amount} ${l.currency==='money'?'₪':'נק׳'}</b>
-        </div>`;
-      }).join('') || '<p class="muted">אין עדיין תנועות.</p>'}
+      <h3>הרווחים שלי לפי שבוע</h3>
+      ${weekRows}
     </div>
   `;
 }
@@ -1625,6 +1790,21 @@ async function waitForFirebaseReady(maxWaitMs){
     await new Promise(r => setTimeout(r, 50));
   }
 }
+function migrateState(st){
+  if(!st) return st;
+  // Ensure containers exist
+  if(!st.globalInactiveDays) st.globalInactiveDays = {};
+  if(!st.ledger) st.ledger = [];
+  if(!st.rewardConfig.dailyDeadline) st.rewardConfig.dailyDeadline = '20:00';
+  // Remove obsolete auto-generated earnings entries (now computed live).
+  // Keep ONLY manual 'payment' entries; weekly/bonus/snatch are recomputed.
+  st.ledger = st.ledger.filter(l => l.type === 'payment');
+  // Ensure tasks have desc field
+  (st.tasks||[]).forEach(t=>{ if(t.desc===undefined) t.desc=''; });
+  // Clean obsolete config
+  if('snatchDayAmount' in st.rewardConfig) delete st.rewardConfig.snatchDayAmount;
+  return st;
+}
 async function init(){
   await waitForFirebaseReady(6000);
   if(!window.__firebaseReady){
@@ -1637,7 +1817,7 @@ async function init(){
     return;
   }
   const loaded = await loadState();
-  state = loaded || defaultState();
+  state = migrateState(loaded) || defaultState();
   const savedSession = loadSession();
   if(savedSession.role==='parent'){
     session = savedSession;
@@ -1651,7 +1831,7 @@ async function init(){
 
   // Live sync: reflect changes from other devices immediately + fire notifications
   window.__firebaseSubscribe((json)=>{
-    const incoming = json ? JSON.parse(json) : defaultState();
+    const incoming = migrateState(json ? JSON.parse(json) : defaultState());
     checkForNotifications(state, incoming);
     state = incoming;
     render();
