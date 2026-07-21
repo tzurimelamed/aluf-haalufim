@@ -354,6 +354,7 @@
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal-box" id="modalBox"></div>
 </div>
+<input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;" onchange="handlePhotoSelected(this)">
 <div id="debugBanner" style="display:none; position:fixed; bottom:0; right:0; left:0; z-index:999; background:#5c1a1a; color:#fff; font-family:monospace; font-size:12px; padding:10px; max-height:40vh; overflow-y:auto; direction:ltr; text-align:left; white-space:pre-wrap;"></div>
 
 <!-- ============ FIREBASE SETUP ============
@@ -364,7 +365,7 @@
 -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBQ5qQkFBIWHccGTQP8tvd1_d7tqdOJSMw",
@@ -410,6 +411,22 @@
       throw e;
     }
   };
+  // Photos are stored as SEPARATE documents inside the same 'family' collection,
+  // so they are covered by the existing security rule and never bloat the main state doc.
+  // They are deleted as soon as the parent approves or rejects.
+  window.__firebaseSavePhoto = async function (photoId, dataUrl) {
+    if (!db) return;
+    await setDoc(doc(db, 'family', photoId), { img: dataUrl, at: Date.now() });
+  };
+  window.__firebaseLoadPhoto = async function (photoId) {
+    if (!db) return null;
+    const snap = await getDoc(doc(db, 'family', photoId));
+    return snap.exists() ? snap.data().img : null;
+  };
+  window.__firebaseDeletePhoto = async function (photoId) {
+    if (!db) return;
+    try { await deleteDoc(doc(db, 'family', photoId)); } catch (e) {}
+  };
   window.__firebaseSubscribe = function (onData) {
     if (!db) return;
     onSnapshot(doc(db, 'family', 'state'), (snap) => {
@@ -440,6 +457,19 @@ const DAYS = [
 ];
 const AVATARS = ['😊','🦁','🐻','🐼','🐨','🦊','🐯','🐰','🐶','🐱','🦄','🐸','🐵','🐷','🐹','⭐'];
 
+// IMPORTANT: all week keys are built from LOCAL date parts.
+// Using toISOString() here caused a timezone shift (Israel is UTC+2/+3),
+// which made week navigation jump 14 days and skip weeks entirely.
+function dateKeyLocal(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+function parseDateKey(key){
+  const [y,m,d] = key.split('-').map(Number);
+  return new Date(y, m-1, d, 0, 0, 0, 0); // local midnight
+}
 function getWeekStart(d){
   const day = d.getDay(); // Sun=0..Sat=6
   const diff = (day - 6 + 7) % 7;
@@ -449,8 +479,7 @@ function getWeekStart(d){
   return ws;
 }
 function weekKeyFor(d){
-  const ws = getWeekStart(d);
-  return ws.toISOString().slice(0,10);
+  return dateKeyLocal(getWeekStart(d));
 }
 function todayDayKey(){
   const day = new Date().getDay();
@@ -459,7 +488,7 @@ function todayDayKey(){
 }
 function currentWeekKey(){ return weekKeyFor(new Date()); }
 function prevWeekKey(weekKey){
-  const d = new Date(weekKey);
+  const d = parseDateKey(weekKey);
   d.setDate(d.getDate()-7);
   return weekKeyFor(d);
 }
@@ -501,7 +530,7 @@ function activeWeekKey(){ return ui.viewWeek || currentWeekKey(); }
 function isViewingCurrentWeek(){ return activeWeekKey() === currentWeekKey(); }
 function goToWeek(weekKey){ ui.viewWeek = weekKey; render(); }
 function shiftViewWeek(deltaWeeks){
-  const d = new Date(activeWeekKey());
+  const d = parseDateKey(activeWeekKey());
   d.setDate(d.getDate() + deltaWeeks*7);
   ui.viewWeek = weekKeyFor(d);
   render();
@@ -642,7 +671,16 @@ function isDayFulfilledCtx(weekKey, kidId, dayKey, day){
   if(isDayGloballyInactive(weekKey, dayKey)) return true;
   return day.status==='approved' || day.status==='inactive';
 }
+// End of the week a given weekKey belongs to (Friday 23:59:59 local)
+function weekEndTimestamp(weekKey){
+  const d = parseDateKey(weekKey);
+  d.setDate(d.getDate()+6);
+  d.setHours(23,59,59,999);
+  return d.getTime();
+}
 function isOpenForSnatch(day){
+  // A snatch offer expires at its deadline so it doesn't linger forever.
+  if(day.snatchDeadline && Date.now() > day.snatchDeadline) return false;
   return (day.status==='needs_fix' && day.fixDeadline && Date.now() > day.fixDeadline && !day.snatchedBy)
       || (day.status==='open_snatch' && !day.snatchedBy);
 }
@@ -762,8 +800,11 @@ function kidSnatchTaskPoints(kidId){
 function kidTotalPaid(kidId){
   return kidLedger(kidId).filter(l=>l.type==='payment').reduce((s,l)=>s+Math.abs(l.amount),0);
 }
+function kidManualAdjustments(kidId){
+  return kidLedger(kidId).filter(l=>l.type==='manual').reduce((s,l)=>s+l.amount,0);
+}
 function kidBalance(kidId){
-  const earned = kidComputedEarnings(kidId) + kidSnatchTaskEarnings(kidId);
+  const earned = kidComputedEarnings(kidId) + kidSnatchTaskEarnings(kidId) + kidManualAdjustments(kidId);
   const paid = kidTotalPaid(kidId);
   return Math.round((earned - paid)*100)/100;
 }
@@ -774,7 +815,7 @@ function kidWeeklyCompletionsThisMonth(kidId){
   const now = new Date();
   return allWeekKeysSorted().filter(wk=>{
     if(!isWeekFullForKid(wk, kidId)) return false;
-    const d = new Date(wk);
+    const d = parseDateKey(wk);
     return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
   }).length;
 }
@@ -972,6 +1013,82 @@ function autoRotateWeek(){
   persistAndRender();
 }
 
+/* ============ PHOTOS (temporary proof, deleted on approve/reject) ============ */
+function photoId(weekKey, ownerKidId, dayKey){
+  return 'photo_' + ownerKidId + '_' + weekKey + '_' + dayKey;
+}
+async function clearDayPhoto(weekKey, ownerKidId, dayKey){
+  const wk = state.weeks[weekKey];
+  const day = wk && wk.days[ownerKidId] && wk.days[ownerKidId][dayKey];
+  if(day && day.hasPhoto){
+    day.hasPhoto = false;
+    try{ await window.__firebaseDeletePhoto(photoId(weekKey, ownerKidId, dayKey)); }catch(e){}
+  }
+}
+// Shrink the image a lot before upload - we only need it as quick proof.
+function compressImage(file, maxSize, quality){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let {width, height} = img;
+        if(width > height && width > maxSize){ height = height*maxSize/width; width = maxSize; }
+        else if(height > maxSize){ width = width*maxSize/height; height = maxSize; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function triggerPhotoPicker(ownerKidId, dayKey){
+  const input = document.getElementById('photoInput');
+  input.dataset.owner = ownerKidId;
+  input.dataset.day = dayKey;
+  input.click();
+}
+async function handlePhotoSelected(input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const ownerKidId = input.dataset.owner;
+  const dayKey = input.dataset.day;
+  input.value = '';
+  const weekKey = activeWeekKey();
+  try{
+    const dataUrl = await compressImage(file, 700, 0.55);
+    if(dataUrl.length > 900000){
+      alert('התמונה גדולה מדי. נסו לצלם שוב.');
+      return;
+    }
+    await window.__firebaseSavePhoto(photoId(weekKey, ownerKidId, dayKey), dataUrl);
+    const wk = ensureWeek(weekKey);
+    ensureKidDays(weekKey, ownerKidId);
+    const day = wk.days[ownerKidId][dayKey];
+    day.hasPhoto = true;
+    day.status = 'waiting_approval';
+    await persistAndRender();
+  }catch(e){
+    alert('לא הצלחתי להעלות את התמונה. נסו שוב.');
+  }
+}
+async function viewDayPhoto(ownerKidId, dayKey){
+  const weekKey = activeWeekKey();
+  openModal(`<h3>תמונת ביצוע</h3><p class="muted">טוען...</p>`);
+  try{
+    const img = await window.__firebaseLoadPhoto(photoId(weekKey, ownerKidId, dayKey));
+    if(!img){ openModal(`<h3>תמונת ביצוע</h3><p class="muted">התמונה אינה זמינה יותר.</p>`); return; }
+    openModal(`<h3>תמונת ביצוע</h3><img src="${img}" style="width:100%; border-radius:12px;">`);
+  }catch(e){
+    openModal(`<h3>תמונת ביצוע</h3><p class="muted">שגיאה בטעינת התמונה.</p>`);
+  }
+}
+
 /* ============ ACTIONS: APPROVALS ============ */
 function markDayDone(ownerKidId, dayKey){
   const wk = ensureWeek(activeWeekKey());
@@ -984,7 +1101,22 @@ function approveDay(ownerKidId, dayKey){
   const wk = ensureWeek(weekKey);
   const day = wk.days[ownerKidId][dayKey];
   day.status = 'approved';
+  day.snatchDeadline = null;
+  clearDayPhoto(weekKey, ownerKidId, dayKey); // photo no longer needed
   // Earnings (including snatched-day credit) are computed live — no ledger writes needed.
+  persistAndRender();
+}
+// Parent marks a task as done on the kid's behalf (works for past weeks too)
+function parentMarkDone(ownerKidId, dayKey){
+  const weekKey = activeWeekKey();
+  const wk = ensureWeek(weekKey);
+  ensureKidDays(weekKey, ownerKidId);
+  const day = wk.days[ownerKidId][dayKey];
+  day.status = 'approved';
+  day.note = '';
+  day.fixDeadline = null;
+  day.snatchDeadline = null;
+  clearDayPhoto(weekKey, ownerKidId, dayKey);
   persistAndRender();
 }
 function openRejectModal(ownerKidId, dayKey){
@@ -1004,6 +1136,7 @@ function confirmReject(ownerKidId, dayKey){
   day.note = note;
   day.fixDeadline = Date.now() + hours*3600*1000;
   day.snatchedBy = null;
+  clearDayPhoto(activeWeekKey(), ownerKidId, dayKey); // photo discarded on rejection
   closeModal();
   persistAndRender();
 }
@@ -1013,17 +1146,20 @@ function claimDaySnatch(ownerKidId, dayKey){
   day.status = 'pending';
   day.snatchedBy = session.kidId;
   day.fixDeadline = null;
+  day.snatchDeadline = null;
   persistAndRender();
 }
 function transferDayToSnatch(ownerKidId, dayKey){
   const kid = getKid(ownerKidId);
   const dayLabel = DAYS.find(d=>d.key===dayKey).label;
   if(!confirm(`להעביר את משימת ${dayLabel} של ${kid.name} למשימות לחטיפה?\nהילד יישאר במצב דחייה ליום זה ולא יקבל עליו כסף אלא אם ילד אחר יחטוף ויבצע.`)) return;
-  const wk = ensureWeek(activeWeekKey());
+  const wkKey = activeWeekKey();
+  const wk = ensureWeek(wkKey);
   const day = wk.days[ownerKidId][dayKey];
   day.status = 'open_snatch';
   day.snatchedBy = null;
   day.fixDeadline = null;
+  day.snatchDeadline = weekEndTimestamp(wkKey); // offer expires at end of that week
   persistAndRender();
 }
 function toggleDayInactiveForKid(ownerKidId, dayKey){
@@ -1057,6 +1193,9 @@ function resetApprovedDay(ownerKidId, dayKey){
   day.status = 'pending';
   day.note = '';
   day.fixDeadline = null;
+  day.snatchDeadline = null;
+  day.snatchedBy = null;
+  clearDayPhoto(weekKey, ownerKidId, dayKey);
   // Earnings recompute automatically.
   persistAndRender();
 }
@@ -1142,6 +1281,29 @@ function openPaymentModal(kidId){
     <div class="field"><label class="field-label">הערה</label><input class="input" id="payNote" placeholder="לדוגמה: תשלום שבועי"></div>
     <button class="btn btn-gold btn-block" onclick="recordPayment('${kidId}')">אישור תשלום</button>
   `);
+}
+function openManualAdjustModal(kidId){
+  openModal(`
+    <h3>תוספת כסף ידנית ל${getKid(kidId).name}</h3>
+    <p class="muted">לדוגמה: יוזמה, עזרה מיוחדת, או ניכוי. סכום שלילי מפחית מהיתרה.</p>
+    <div class="field"><label class="field-label">סכום (₪)</label><input class="input" type="number" id="adjAmount" value="5"></div>
+    <div class="field"><label class="field-label">הערה / סיבה</label><input class="input" id="adjNote" placeholder="למשל: עזר לאחיו הקטן בשיעורי בית"></div>
+    <button class="btn btn-sage btn-block" onclick="recordManualAdjust('${kidId}')">הוספה</button>
+  `);
+}
+function recordManualAdjust(kidId){
+  const amount = parseFloat(document.getElementById('adjAmount').value);
+  const note = document.getElementById('adjNote').value.trim();
+  if(isNaN(amount) || amount===0){ alert('נא להזין סכום'); return; }
+  if(!note){ alert('נא להזין הערה קצרה'); return; }
+  addLedger(kidId, 'manual', amount, 'money', note);
+  closeModal();
+  persistAndRender();
+}
+function deleteLedgerEntry(entryId){
+  if(!confirm('למחוק את הרישום הזה?')) return;
+  state.ledger = state.ledger.filter(l=>l.id!==entryId);
+  persistAndRender();
 }
 function recordPayment(kidId){
   const amount = parseFloat(document.getElementById('payAmount').value)||0;
@@ -1262,15 +1424,18 @@ function renderParentTrail(kidId, weekKey){
     const icon = {pending:'',waiting:'⏳',approved:'✓',needsfix:'!',opensnatch:'⚡',inactive:'∅'}[st];
     const globallyInactive = isDayGloballyInactive(weekKey, d.key);
     let actions = '';
+    const photoBtn = day.hasPhoto ? `<button class="icon-btn" style="background:#F1EAE0; color:var(--ink-soft); padding:4px 7px; font-size:11px;" onclick="viewDayPhoto('${kidId}','${d.key}')">📷</button>` : '';
     if(st==='waiting'){
       actions = `<div class="row" style="gap:3px; margin-top:4px; flex-wrap:wrap; justify-content:center;">
+        ${photoBtn}
         <button class="icon-btn" style="background:var(--sage); padding:4px 7px; font-size:11px;" onclick="approveDay('${kidId}','${d.key}')">אשר</button>
         <button class="icon-btn" style="background:var(--coral); padding:4px 7px; font-size:11px;" onclick="openRejectModal('${kidId}','${d.key}')">דחה</button>
         <button class="icon-btn" style="background:var(--sky); padding:4px 7px; font-size:11px;" onclick="transferDayToSnatch('${kidId}','${d.key}')">העבר</button>
       </div>`;
-    } else if(st==='needsfix' || st==='pending'){
+    } else if(st==='needsfix' || st==='pending' || st==='opensnatch'){
       actions = `<div class="row" style="gap:3px; margin-top:4px; flex-wrap:wrap; justify-content:center;">
-        <button class="icon-btn" style="background:var(--sky); padding:4px 7px; font-size:11px;" onclick="transferDayToSnatch('${kidId}','${d.key}')">העבר</button>
+        <button class="icon-btn" style="background:var(--sage); padding:4px 7px; font-size:11px;" onclick="parentMarkDone('${kidId}','${d.key}')">✓ בוצע</button>
+        ${st!=='opensnatch'?`<button class="icon-btn" style="background:var(--sky); padding:4px 7px; font-size:11px;" onclick="transferDayToSnatch('${kidId}','${d.key}')">העבר</button>`:''}
       </div>`;
     } else if(st==='approved'){
       actions = `<div class="row" style="gap:3px; margin-top:4px; justify-content:center;">
@@ -1288,8 +1453,8 @@ function renderParentTrail(kidId, weekKey){
 }
 
 function weekRangeLabel(weekKey){
-  const start = new Date(weekKey);
-  const end = new Date(weekKey);
+  const start = parseDateKey(weekKey);
+  const end = parseDateKey(weekKey);
   end.setDate(end.getDate()+6);
   const f = (d)=>d.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'});
   return `${f(start)}–${f(end)}`;
@@ -1346,8 +1511,32 @@ function renderParentHome(){
   });
   const pendingSnatchTasks = state.snatchTasks.filter(t=>t.status==='waiting_approval');
 
+  // Days that were snatched by another kid and are waiting for the parent's approval
+  const snatchedWaiting = [];
+  state.kids.forEach(owner=>{
+    const wk = ensureWeek(weekKey);
+    const days = wk.days[owner.id];
+    if(!days) return;
+    DAYS.forEach(d=>{
+      const day = days[d.key];
+      if(day.status==='waiting_approval' && day.snatchedBy){
+        const task = getTask(wk.assignments[owner.id]);
+        const snatcher = getKid(day.snatchedBy);
+        snatchedWaiting.push(`<div class="row between" style="padding:6px 0; flex-wrap:wrap; gap:6px;">
+          <span style="font-size:13px;">${task?task.name:''} · ${d.label}<br><span class="muted">במקום ${owner.name} · ביצע/ה: <b>${snatcher?snatcher.name:'?'}</b></span></span>
+          <div class="row" style="gap:4px;">
+            ${day.hasPhoto?`<button class="icon-btn" style="background:#F1EAE0; color:var(--ink-soft);" onclick="viewDayPhoto('${owner.id}','${d.key}')">📷</button>`:''}
+            <button class="icon-btn" style="background:var(--sage);" onclick="approveDay('${owner.id}','${d.key}')">אשר</button>
+            <button class="icon-btn" style="background:var(--coral);" onclick="openRejectModal('${owner.id}','${d.key}')">דחה</button>
+          </div>
+        </div>`);
+      }
+    });
+  });
+
   return `
     ${renderWeekNav()}
+    ${snatchedWaiting.length?`<div class="card" style="border:1.5px solid var(--gold);"><h3>⚡ חטיפות שממתינות לאישור שלך</h3>${snatchedWaiting.join('')}</div>`:''}
     ${kidsRows}
     ${openSnatchDays.length?`<div class="card"><h3>⚡ ימי משימה פתוחים לחטיפה</h3>${openSnatchDays.join('')}</div>`:''}
     ${pendingSnatchTasks.length?`<div class="card"><h3>🎯 משימות חטיפה ממתינות לאישור</h3>${pendingSnatchTasks.map(t=>`
@@ -1478,16 +1667,31 @@ function renderParentReports(){
     const payments = kidLedger(kid.id).filter(l=>l.type==='payment').slice().reverse();
     const payRows = payments.map(l=>`<div class="row between" style="padding:4px 0; font-size:13px;">
         <span class="muted">${fmtDate(l.date)} · תשלום · ${l.label}</span>
-        <b style="color:var(--coral-dark)">${l.amount} ₪</b>
+        <div class="row" style="gap:6px;">
+          <b style="color:var(--coral-dark)">${l.amount} ₪</b>
+          <button class="icon-btn" style="background:transparent; color:var(--ink-soft); border:1px solid var(--line); padding:2px 6px; font-size:10px;" onclick="deleteLedgerEntry('${l.id}')">✕</button>
+        </div>
+      </div>`).join('');
+    const manuals = kidLedger(kid.id).filter(l=>l.type==='manual').slice().reverse();
+    const manualRows = manuals.map(l=>`<div class="row between" style="padding:4px 0; font-size:13px;">
+        <span class="muted">${fmtDate(l.date)} · ${l.label}</span>
+        <div class="row" style="gap:6px;">
+          <b style="color:${l.amount>=0?'var(--sage-dark)':'var(--coral-dark)'}">${l.amount>=0?'+':''}${l.amount} ₪</b>
+          <button class="icon-btn" style="background:transparent; color:var(--ink-soft); border:1px solid var(--line); padding:2px 6px; font-size:10px;" onclick="deleteLedgerEntry('${l.id}')">✕</button>
+        </div>
       </div>`).join('');
     return `<div class="card">
       <div class="row between">
         <div class="row"><div class="avatar">${kid.avatar||'😊'}</div><div><b>${kid.name}</b><br><span class="muted">יתרה: ${kidBalance(kid.id)} ₪</span></div></div>
-        <button class="btn btn-gold" onclick="openPaymentModal('${kid.id}')">סימון תשלום</button>
+      </div>
+      <div class="row" style="gap:6px; margin-top:10px;">
+        <button class="btn btn-gold" style="flex:1;" onclick="openPaymentModal('${kid.id}')">סימון תשלום</button>
+        <button class="btn btn-outline" style="flex:1;" onclick="openManualAdjustModal('${kid.id}')">+ תוספת ידנית</button>
       </div>
       <hr class="sep">
       <b style="font-size:13px; color:var(--primary-dark);">רווחים לפי שבוע</b>
       ${weekRows}
+      ${manualRows?`<b style="font-size:13px; color:var(--primary-dark); display:block; margin-top:8px;">תוספות ידניות</b>${manualRows}`:''}
       ${payRows?`<b style="font-size:13px; color:var(--primary-dark); display:block; margin-top:8px;">תשלומים</b>${payRows}`:''}
     </div>`;
   }).join('') || '<p class="muted">אין עדיין ילדים.</p>';
@@ -1572,7 +1776,9 @@ function renderKidToday(){
     mainAction = `<div class="chip chip-muted" style="font-size:14px; padding:10px 16px;">∅ יום לא פעיל – אין משימה היום, והרצף שלך נשמר 😊</div>`;
   } else if(st==='pending'){
     const deadlineNote = state.rewardConfig.dailyDeadline ? `<p class="muted" style="margin:0 0 10px;">⏰ יש לבצע עד השעה ${state.rewardConfig.dailyDeadline}</p>` : '';
-    mainAction = `${deadlineNote}<button class="btn btn-primary btn-block btn-lg" onclick="markDayDone('${kid.id}','${today}')">✓ ביצעתי!</button>`;
+    mainAction = `${deadlineNote}
+      <button class="btn btn-primary btn-block btn-lg" onclick="markDayDone('${kid.id}','${today}')">✓ ביצעתי!</button>
+      <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="triggerPhotoPicker('${kid.id}','${today}')">📷 ביצעתי + צילום</button>`;
   } else if(st==='waiting'){
     mainAction = `<div class="chip chip-gold" style="font-size:14px; padding:10px 16px;">⏳ ממתין לאישור הורה</div>`;
   } else if(st==='approved'){
@@ -1591,7 +1797,8 @@ function renderKidToday(){
     }
     mainAction = `<div class="chip chip-coral" style="font-size:13px; padding:10px 14px; display:block;">נדרש תיקון: ${todayObj.note||''}</div>
       ${timeLeftNote}
-      <button class="btn btn-primary btn-block" style="margin-top:10px;" onclick="markDayDone('${kid.id}','${today}')">תיקנתי, לבדיקה מחדש</button>`;
+      <button class="btn btn-primary btn-block" style="margin-top:10px;" onclick="markDayDone('${kid.id}','${today}')">תיקנתי, לבדיקה מחדש</button>
+      <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="triggerPhotoPicker('${kid.id}','${today}')">📷 תיקנתי + צילום</button>`;
   } else if(st==='opensnatch'){
     mainAction = `<div class="chip chip-sky" style="font-size:13px; padding:10px 14px;">הזמן לתיקון עבר – המשימה פתוחה לחטיפה על ידי אח/אחות אחר/ת.</div>`;
   }
@@ -1798,9 +2005,31 @@ function migrateState(st){
   if(!st.rewardConfig.dailyDeadline) st.rewardConfig.dailyDeadline = '20:00';
   // Remove obsolete auto-generated earnings entries (now computed live).
   // Keep ONLY manual 'payment' entries; weekly/bonus/snatch are recomputed.
-  st.ledger = st.ledger.filter(l => l.type === 'payment');
+  st.ledger = st.ledger.filter(l => l.type === 'payment' || l.type === 'manual');
   // Ensure tasks have desc field
   (st.tasks||[]).forEach(t=>{ if(t.desc===undefined) t.desc=''; });
+  // --- Fix legacy week keys ---
+  // Older versions built week keys with toISOString(), which (in Israel, UTC+2/+3)
+  // stored the FRIDAY date instead of the week's SATURDAY start.
+  // Shift any Friday-dated key forward by one day so old history lines up again.
+  const shiftKey = (key)=>{
+    const d = parseDateKey(key);
+    if(d.getDay()===5){ d.setDate(d.getDate()+1); return dateKeyLocal(d); }
+    return key;
+  };
+  const remap = (obj)=>{
+    if(!obj) return obj;
+    const out = {};
+    Object.keys(obj).forEach(k=>{
+      const nk = shiftKey(k);
+      // if both old and new exist, keep the one with more data
+      if(out[nk] && JSON.stringify(out[nk]).length > JSON.stringify(obj[k]).length) return;
+      out[nk] = obj[k];
+    });
+    return out;
+  };
+  st.weeks = remap(st.weeks);
+  st.globalInactiveDays = remap(st.globalInactiveDays);
   // Clean obsolete config
   if('snatchDayAmount' in st.rewardConfig) delete st.rewardConfig.snatchDayAmount;
   return st;
